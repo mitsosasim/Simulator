@@ -50,6 +50,20 @@
       <name>camera</name>
     </include>
 
+    <!-- including the camera follow link -->
+    <include>
+      <uri>model://camera_follow</uri>
+      <pose>-0.3 0 0.45 0 0.6 0</pose>
+      <name>camera_follow</name>
+    </include>
+
+    <!-- including the camera follow link -->
+    <include>
+      <uri>model://cam_birdeye_REC</uri>
+      <pose>0 0 1.5 0 1.570794 0</pose>
+      <name>cam_birdeye_REC</name>
+    </include>
+
     <!-- includeing the car body -->
     <include>
       <uri>model://car_body</uri>
@@ -303,6 +317,46 @@
         </ode>
       </physics>
     </joint>
+
+    <!-- fixed joint for the camera follow -->
+    <joint name='joint_camera_follow' type='fixed'>
+      <parent>chassis::link</parent>
+      <child>camera_follow::link_camera</child>
+      <pose frame=''>0 0 0 0 -0 0</pose>
+      <physics>
+        <ode>
+          <limit>
+            <cfm>0</cfm>
+            <erp>0.2</erp>
+          </limit>
+          <suspension>
+            <cfm>0</cfm>
+            <erp>0.2</erp>
+          </suspension>
+        </ode>
+      </physics>
+    </joint>
+
+
+    <!-- fixed joint for the camera RECORDING -->
+    <joint name='joint_cam_birdeye_REC' type='fixed'>
+      <parent>chassis::link</parent>
+      <child>cam_birdeye_REC::link_camera</child>
+      <pose frame=''>0 0 0 0 -0 0</pose>
+      <physics>
+        <ode>
+          <limit>
+            <cfm>0</cfm>
+            <erp>0.2</erp>
+          </limit>
+          <suspension>
+            <cfm>0</cfm>
+            <erp>0.2</erp>
+          </suspension>
+        </ode>
+      </physics>
+    </joint>
+
 
     <!-- Plugin  -->
     <plugin name='CarLikeRobotPlugin' filename='libcar_plugin.so'>
