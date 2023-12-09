@@ -85,7 +85,7 @@ namespace gazebo
             ignition::math::Vector3d            m_last_speed{0,0,0};
 
 
-            boost::mutex m_mutex;
+            std::mutex m_mutex;
 
         // Default constructor
         public: Pedestrian();

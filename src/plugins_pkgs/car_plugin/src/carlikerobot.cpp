@@ -50,7 +50,7 @@ namespace gazebo{
 
             if(DEBUG)
             {
-                ROS_INFO("Front speed:\t\t[%f, %f]", l_Vr_L, l_Vr_R);
+                RCLCPP_INFO(rclcpp::get_logger("CarPlugin"), "Front speed:\t\t[%f, %f]", l_Vr_L, l_Vr_R);
             }
 
             _model->GetJointController()->SetVelocityTarget(this->_jointLeft->GetScopedName(),l_Vr_L);
@@ -92,7 +92,7 @@ namespace gazebo{
 
             if(DEBUG)
             {
-                ROS_INFO("Rear speed:\t\t[%f, %f]",l_Vr_L, l_Vr_R);
+                RCLCPP_INFO(rclcpp::get_logger("CarPlugin"), "Rear speed:\t\t[%f, %f]",l_Vr_L, l_Vr_R);
             }
 
             this->_model->GetJointController()->SetVelocityTarget(this->_jointLeft->GetScopedName(),l_Vr_L);
@@ -130,7 +130,7 @@ namespace gazebo{
 
             if(DEBUG)
             {
-                ROS_INFO("Angle:\t\t\t[%f, %f]", l_steer_left*180.0/PI,l_steer_right*180.0/PI);
+                RCLCPP_INFO(rclcpp::get_logger("CarPlugin"), "Angle:\t\t\t[%f, %f]", l_steer_left*180.0/PI,l_steer_right*180.0/PI);
                 ROS_INFO_STREAM("====================================================================");
             }
             

@@ -1,28 +1,24 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.5)
 project(utils)
 
-find_package(catkin REQUIRED COMPONENTS
-  std_msgs
-  message_generation
+find_package(rosidl_default_generators REQUIRED)
+find_package(ament_cmake REQUIRED)
+find_package(std_msgs REQUIRED)
+set(CMAKE_CXX_STANDARD 1 4)
+
+ 
+rosidl_generate_interfaces(
+    ${PROJECT_NAME}
+        msg/IMU.msg
+        msg/localisation.msg
+    DEPENDENCIES
+        
 )
 
- add_message_files(
-   FILES
-   IMU.msg
-   localisation.msg
- )
-
- generate_messages(
-   DEPENDENCIES
-   std_msgs
- )
-
-
-catkin_package(
-  CATKIN_DEPENDS message_runtime
-)
+ 
 
 include_directories(
 # include
-  ${catkin_INCLUDE_DIRS}
+  
 )
+ament_package()

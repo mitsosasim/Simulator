@@ -3,8 +3,8 @@
 #include <gazebo/common/common.hh>
 #include <gazebo/physics/physics.hh>
 
-#include <ros/ros.h>
-#include <std_msgs/String.h>
+#include "rclcpp/rclcpp.hpp"
+#include <std_msgs/msg/string.hpp>
 
 #include "carlikerobot.hpp"
 #include "rapidjson/document.h"
@@ -29,7 +29,7 @@ namespace gazebo
             public:
                 CMessageHandler(std::string, IRobotCommandSetter*);
                 ~CMessageHandler();
-                void OnMsgCommand(std_msgs::String _msg);
+                void OnMsgCommand(std_msgs::msg::String _msg);
 
             private:
                 void unknownMessage();
@@ -40,7 +40,7 @@ namespace gazebo
                 // private variable 
                 IRobotCommandSetter*                _robotSetter;
 
-                std::unique_ptr<ros::NodeHandle>    _rosNode;
+                std::unique_ptr<rclcpp::Node>    _rosNode;
                 ros::Subscriber                     _commandSubscriber;
                 ros::Publisher                      _feedbackPublisher;
 		

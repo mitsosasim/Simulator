@@ -25,12 +25,12 @@ namespace gazebo
             }
 
 
-            this->_rosNode.reset(new ::ros::NodeHandle("/serialNODEvirt"));
+            this->_rosNode.reset(new ::rclcpp::Node("/serialNODEvirt"));
 
             this->_commandSubscriber = this->_rosNode->subscribe(topicName, 1, &CMessageHandler::OnMsgCommand, this);
 
             // Feedback message
-			this->_feedbackPublisher = this->_rosNode->advertise<std_msgs::String>(listen_topicName, 2);
+			this->_feedbackPublisher = this->_rosNode->advertise<std_msgs::msg::String>(listen_topicName, 2);
 		
             if (DEBUG)
             {
@@ -53,7 +53,7 @@ namespace gazebo
 	}
 
         // Callback function for receiving messages on the /car_name/Command topic
-        void CMessageHandler::OnMsgCommand(std_msgs::String _msg)
+        void CMessageHandler::OnMsgCommand(std_msgs::msg::String _msg)
         {           
         	rapidjson::Document doc;
         	const char* c = _msg.data.c_str();
@@ -86,7 +86,7 @@ namespace gazebo
 
         void CMessageHandler::unknownMessage()
         {
-            std_msgs::String l_resp;
+            std_msgs::msg::String l_resp;
             l_resp.data = "@MESS:err;;";
             this->_feedbackPublisher.publish(l_resp);
         }
@@ -96,7 +96,7 @@ namespace gazebo
             _robotSetter->f_speed = 0;
             _robotSetter->f_steer = _msg_val;
             _robotSetter->setCommand();
-            std_msgs::String l_resp;
+            std_msgs::msg::String l_resp;
             l_resp.data= "@3:ack;;";
             this->_feedbackPublisher.publish(l_resp);
         }
@@ -105,7 +105,7 @@ namespace gazebo
         {
             _robotSetter->f_speed = _msg_val;
             _robotSetter->setCommand();
-            std_msgs::String l_resp;
+            std_msgs::msg::String l_resp;
             l_resp.data = "@1:ack;;";
             this->_feedbackPublisher.publish(l_resp);
         }
@@ -114,7 +114,7 @@ namespace gazebo
         {
             _robotSetter->f_steer = _msg_val;
             _robotSetter->setCommand();
-            std_msgs::String l_resp;
+            std_msgs::msg::String l_resp;
             l_resp.data = "@2:ack;;";
             this->_feedbackPublisher.publish(l_resp);
         }

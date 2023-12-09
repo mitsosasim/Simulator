@@ -1,6 +1,6 @@
 #include <gazebo/physics/physics.hh>
 #include <gazebo/common/common.hh>
-#include <ros/ros.h>
+#include "rclcpp/rclcpp.hpp"
 
 #ifndef PI
 #define PI 3.141592654

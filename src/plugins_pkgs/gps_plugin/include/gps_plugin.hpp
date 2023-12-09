@@ -6,8 +6,8 @@
 #include <gazebo/physics/physics.hh>
 
 
-#include "ros/ros.h"
-#include "utils/localisation.h"
+#include "rclcpp/rclcpp.hpp"
+#include <utils/msg/localisation.hpp>
 
 namespace gazebo
 {
@@ -17,18 +17,18 @@ namespace gazebo
     	{
         private: 
             physics::ModelPtr                   m_model;
-            ros::NodeHandlePtr		  nh;
-            ros::Timer				  timer;
+            rclcpp::NodePtr		  nh;
+            rclcpp::Timer				  timer;
 
 	    /** ROS INTEGRATION **/
             // A node use for ROS transport
-            std::unique_ptr<ros::NodeHandle>    m_ros_node;
+            std::unique_ptr<rclcpp::Node>    m_ros_node;
 
             // A ROS publisher
             ros::Publisher                      m_pubGPS;
 
             // The gps message
-            utils::localisation            m_gps_pose;
+            utils::msg::localisation            m_gps_pose;
             
         // Default constructor
         public: GPS();

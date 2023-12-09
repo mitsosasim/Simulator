@@ -51,8 +51,10 @@ class RemoteControlTransmitterProcess():
         
         self.rcBrain   =  RcBrainThread()   
         
-        rospy.init_node('EXAMPLEnode', anonymous=False)     
-        self.publisher = rospy.Publisher('/automobile/command', String, queue_size=1)
+        rclpy.init()
+        
+        node = rclpy.create_node('EXAMPLEnode', anonymous=False)     
+        self.publisher = node.create_publisher(String, queue_size=1, '/automobile/command')
 
     # ===================================== RUN ==========================================
     def run(self):

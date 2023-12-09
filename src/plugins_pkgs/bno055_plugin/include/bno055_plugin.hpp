@@ -4,8 +4,8 @@
 #include <gazebo/common/common.hh>
 #include <gazebo/physics/physics.hh>
 
-#include "ros/ros.h"
-#include "utils/IMU.h"
+#include "rclcpp/rclcpp.hpp"
+#include <utils/msg/imu.hpp>
 
 
 namespace gazebo
@@ -16,17 +16,17 @@ namespace gazebo
     	{
         private: 
             physics::ModelPtr                   m_model;
-            ros::NodeHandlePtr		  nh;
-            ros::Timer				  timer;
+            rclcpp::NodePtr		  nh;
+            rclcpp::Timer				  timer;
 
             /** ----------------------------------For ROS integration----------------------------------------------------**/
             // A node use for ROS transport
-            std::unique_ptr<ros::NodeHandle>    m_ros_node;
+            std::unique_ptr<rclcpp::Node>    m_ros_node;
 
             // A ROS publisher
             ros::Publisher                      m_pubBNO;
             
-            utils::IMU                  m_bno055_pose;
+            utils::msg::IMU                  m_bno055_pose;
 
         // Default constructor
         public: BNO055();

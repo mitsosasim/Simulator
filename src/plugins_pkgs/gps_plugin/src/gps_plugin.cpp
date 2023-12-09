@@ -11,8 +11,8 @@ namespace gazebo
      		
         void GPS::Load(physics::ModelPtr model_ptr, sdf::ElementPtr sdf_ptr)
         {
-          nh = boost::make_shared<ros::NodeHandle>();
-          timer = nh->createTimer(ros::Duration(0.25), std::bind(&GPS::OnUpdate, this));
+          nh = boost::make_shared<rclcpp::Node>();
+          timer = nh->createTimer(rclcpp::Duration(0.25), std::bind(&GPS::OnUpdate, this));
 
   			  // Save a pointer to the model for later use
   			  this->m_model = model_ptr;
@@ -28,9 +28,9 @@ namespace gazebo
       			  ros::init(argc, argv, "localisationNODEvirt", ros::init_options::NoSigintHandler);
     			}
 
-          this->m_ros_node.reset(new ::ros::NodeHandle("/localisationNODEvirt"));
+          this->m_ros_node.reset(new ::rclcpp::Node("/localisationNODEvirt"));
 
-        	this->m_pubGPS = this->m_ros_node->advertise<utils::localisation>(topic_name, 2);
+        	this->m_pubGPS = this->m_ros_node->advertise<utils::msg::localisation>(topic_name, 2);
         	
           if(DEBUG)
           {

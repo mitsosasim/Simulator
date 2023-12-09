@@ -10,8 +10,8 @@ namespace gazebo
 
         void BNO055::Load(physics::ModelPtr model_ptr, sdf::ElementPtr sdf_ptr)
         {
-            nh = boost::make_shared<ros::NodeHandle>();	
-            timer = nh->createTimer(ros::Duration(0.1), std::bind(&BNO055::OnUpdate, this));
+            nh = boost::make_shared<rclcpp::Node>();	
+            timer = nh->createTimer(rclcpp::Duration(0.1), std::bind(&BNO055::OnUpdate, this));
 	    	
       			// Save a pointer to the model for later use
       			this->m_model = model_ptr;
@@ -28,8 +28,8 @@ namespace gazebo
         			  ros::init(argc, argv, "gazebo_client_bno", ros::init_options::NoSigintHandler);
       			}
 
-            this->m_ros_node.reset(new ::ros::NodeHandle("/bnoNODEvirt"));
-          	this->m_pubBNO = this->m_ros_node->advertise<utils::IMU>(topic_name, 2);
+            this->m_ros_node.reset(new ::rclcpp::Node("/bnoNODEvirt"));
+          	this->m_pubBNO = this->m_ros_node->advertise<utils::msg::IMU>(topic_name, 2);
 
 
             if(DEBUG)

@@ -37,14 +37,15 @@ class trafficlight():
         self.TL_interval = 1
 
         #Initialize the node
-        rospy.init_node('traffic_light_publisher_node', anonymous=True)
+        rclpy.init()
+        node = rclpy.create_node('traffic_light_publisher_node', anonymous=True)
 
         self.trafficlights = []
         #Create a new publisher, specify the topic name, type of message and queue size
-        tlma = rospy.Publisher('/automobile/trafficlight/master', Byte, queue_size=1)
-        tlsl = rospy.Publisher('/automobile/trafficlight/slave', Byte, queue_size=1)
-        tlam = rospy.Publisher('/automobile/trafficlight/antimaster', Byte, queue_size=1)
-        tlst = rospy.Publisher('/automobile/trafficlight/start', Byte, queue_size=1)
+        tlma = node.create_publisher(Byte, queue_size=1, '/automobile/trafficlight/master')
+        tlsl = node.create_publisher(Byte, queue_size=1, '/automobile/trafficlight/slave')
+        tlam = node.create_publisher(Byte, queue_size=1, '/automobile/trafficlight/antimaster')
+        tlst = node.create_publisher(Byte, queue_size=1, '/automobile/trafficlight/start')
         
         self.trafficlights.append(tlma)
         self.trafficlights.append(tlsl)

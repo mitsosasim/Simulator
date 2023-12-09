@@ -42,7 +42,7 @@ namespace gazebo
 			}
 			
 			// Create our ROS node. This acts in a similar manner to the Gazebo node
-			this->m_ros_node.reset(new ros::NodeHandle("trafficlightNODEvirt" + this->name));
+			this->m_ros_node.reset(new rclcpp::Node("trafficlightNODEvirt" + this->name));
 
 			// Create a subscriber
 			this->m_ros_subscriber = this->m_ros_node->subscribe("/automobile/trafficlight/" + this->name, 1, &trafficLight::TrafficLight::OnRosMsg, this);
@@ -81,7 +81,7 @@ namespace gazebo
         
         // Handle an incoming message from ROS
 		// _msg A float value that is used to set the velocity
-		void TrafficLight::OnRosMsg(std_msgs::Byte _msg)
+		void TrafficLight::OnRosMsg(std_msgs::msg::Byte _msg)
 		{
 			switch(_msg.data)
 			{
