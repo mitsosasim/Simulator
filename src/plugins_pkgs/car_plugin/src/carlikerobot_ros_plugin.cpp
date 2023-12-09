@@ -1,6 +1,6 @@
 #include "carlikerobot_ros_plugin.hpp"
 
-#define DEBUG false
+#define DEBUG true
 
 namespace gazebo
 {

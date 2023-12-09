@@ -1,6 +1,6 @@
 #include "carlikerobot.hpp"
 
-#define DEBUG false
+#define DEBUG true
 
 namespace gazebo{
     namespace carlikerobot{

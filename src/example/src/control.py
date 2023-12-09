@@ -59,6 +59,7 @@ class RemoteControlTransmitterProcess():
         """Apply initializing methods and start the threads. 
         """
         with keyboard.Listener(on_press = self.keyPress, on_release = self.keyRelease) as listener: 
+            print("joining...")
             listener.join()
 	
     # ===================================== KEY PRESS ====================================
@@ -70,13 +71,11 @@ class RemoteControlTransmitterProcess():
         key : pynput.keyboard.Key
             The key pressed
         """                                     
-        try:                                                
-            if key.char in self.allKeys:
-                keyMsg = 'p.' + str(key.char)
+        print(key)
+        if key.char in self.allKeys:
+            keyMsg = 'p.' + str(key.char)
 
-                self._send_command(keyMsg)
-    
-        except: pass
+            self._send_command(keyMsg)
         
     # ===================================== KEY RELEASE ==================================
     def keyRelease(self, key):
@@ -91,13 +90,11 @@ class RemoteControlTransmitterProcess():
         if key == keyboard.Key.esc:                        #exit key      
             self.publisher.publish('{"action":"3","steerAngle":0.0}')   
             return False
-        try:                                               
-            if key.char in self.allKeys:
-                keyMsg = 'r.'+str(key.char)
 
-                self._send_command(keyMsg)
-    
-        except: pass                                                              
+        if key.char in self.allKeys:
+            keyMsg = 'r.'+str(key.char)
+
+            self._send_command(keyMsg)
                  
     # ===================================== SEND COMMAND =================================
     def _send_command(self, key):
@@ -115,8 +112,5 @@ class RemoteControlTransmitterProcess():
             self.publisher.publish(command)  
             
 if __name__ == '__main__':
-    try:
-        nod = RemoteControlTransmitterProcess()
-        nod.run()
-    except rospy.ROSInterruptException:
-        pass
+    nod = RemoteControlTransmitterProcess()
+    nod.run()
