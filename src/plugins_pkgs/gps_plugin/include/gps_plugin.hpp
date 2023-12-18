@@ -7,7 +7,7 @@
 
 
 #include "rclcpp/rclcpp.hpp"
-#include <utils/msg/localisation.hpp>
+#include <utils/msg/Localisation.hpp>
 
 namespace gazebo
 {
@@ -28,7 +28,7 @@ namespace gazebo
             ros::Publisher                      m_pubGPS;
 
             // The gps message
-            utils::msg::localisation            m_gps_pose;
+            utils::msg::Localisation            m_gps_pose;
             
         // Default constructor
         public: GPS();

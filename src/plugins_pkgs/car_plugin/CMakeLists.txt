@@ -8,16 +8,8 @@ find_package(gazebo_ros REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 
-# find_package(rosidl_default_generators REQUIRED)
-
-# rosidl_generate_interfaces(
-#   ${PROJECT_NAME}
-#   DEPENDENCIES
-#   std_msgs
-# )
-
 link_directories(${gazebo_dev_LIBRARY_DIRS} ${GAZEBO_LIBRARY_DIRS})
-include_directories(include ${Boost_INCLUDE_DIR} ${GAZEBO_INCLUDE_DIRS} ${roscpp_INCLUDE_DIRS} ${std_msgs_INCLUDE_DIRS})
+include_directories(include ${Boost_INCLUDE_DIR} ${roscpp_INCLUDE_DIRS} ${std_msgs_INCLUDE_DIRS})
 
 add_library(car_plugin SHARED src/carlikerobot_ros_plugin.cpp src/carlikerobot.cpp)
 target_include_directories(car_plugin PUBLIC include)

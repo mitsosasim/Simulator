@@ -30,7 +30,7 @@ namespace gazebo
 
           this->m_ros_node.reset(new ::rclcpp::Node("/localisationNODEvirt"));
 
-        	this->m_pubGPS = this->m_ros_node->advertise<utils::msg::localisation>(topic_name, 2);
+        	this->m_pubGPS = this->m_ros_node->advertise<utils::msg::Localisation>(topic_name, 2);
         	
           if(DEBUG)
           {
@@ -47,10 +47,10 @@ namespace gazebo
         void GPS::OnUpdate()
         {
 		this->m_gps_pose.timestamp  = this->m_model->GetWorld()->SimTime().Float();
-           	this->m_gps_pose.posA   = this->m_model->RelativePose().Pos().X() + (rand() / (float)RAND_MAX * 0.2) - 0.1;
-           	this->m_gps_pose.posB   = abs(this->m_model->RelativePose().Pos().Y()) + (rand() / (float)RAND_MAX * 0.2) - 0.1;
-           	this->m_gps_pose.rotA   = this->m_model->RelativePose().Rot().Yaw();
-           	this->m_gps_pose.rotB   = this->m_model->RelativePose().Rot().Yaw();
+           	this->m_gps_pose.pos_a   = this->m_model->RelativePose().Pos().X() + (rand() / (float)RAND_MAX * 0.2) - 0.1;
+           	this->m_gps_pose.pos_b   = abs(this->m_model->RelativePose().Pos().Y()) + (rand() / (float)RAND_MAX * 0.2) - 0.1;
+           	this->m_gps_pose.rot_a   = this->m_model->RelativePose().Rot().Yaw();
+           	this->m_gps_pose.rot_b   = this->m_model->RelativePose().Rot().Yaw();
                this->m_pubGPS.publish(this->m_gps_pose);
         };      
     }; //namespace trafficLight

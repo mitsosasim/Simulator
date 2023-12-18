@@ -4,21 +4,16 @@ project(utils)
 find_package(rosidl_default_generators REQUIRED)
 find_package(ament_cmake REQUIRED)
 find_package(std_msgs REQUIRED)
-set(CMAKE_CXX_STANDARD 1 4)
 
+set(msg_files
+    "msg/IMU.msg"
+    "msg/Localisation.msg"
+)
  
 rosidl_generate_interfaces(
     ${PROJECT_NAME}
-        msg/IMU.msg
-        msg/localisation.msg
-    DEPENDENCIES
-        
+    ${msg_files}
 )
 
- 
-
-include_directories(
-# include
-  
-)
+ament_export_dependencies(rosidl_default_runtime)
 ament_package()

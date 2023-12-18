@@ -1,6 +1,6 @@
 #include "bno055_plugin.hpp"
 
-#define DEBUG false
+#define DEBUG true
 
 namespace gazebo
 {
@@ -10,36 +10,22 @@ namespace gazebo
 
         void BNO055::Load(physics::ModelPtr model_ptr, sdf::ElementPtr sdf_ptr)
         {
-            nh = boost::make_shared<rclcpp::Node>();	
-            timer = nh->createTimer(rclcpp::Duration(0.1), std::bind(&BNO055::OnUpdate, this));
-	    	
-      			// Save a pointer to the model for later use
-      			this->m_model = model_ptr;
+            this->m_model = model_ptr;
+            this->m_ros_node = gazebo_ros::Node::Get(sdf_ptr);
+            this->timer = this->m_ros_node->create_wall_timer(std::chrono::milliseconds(100), std::bind(&BNO055::OnUpdate, this));
       			
-          	// Create topic name        	
           	std::string topic_name = "/automobile/IMU";
-	        
-
-            // Initialize ros, if it has not already bee initialized.
-      			if (!ros::isInitialized())
-      			{
-        			  int argc = 0;
-        			  char **argv = NULL;
-        			  ros::init(argc, argv, "gazebo_client_bno", ros::init_options::NoSigintHandler);
-      			}
-
-            this->m_ros_node.reset(new ::rclcpp::Node("/bnoNODEvirt"));
-          	this->m_pubBNO = this->m_ros_node->advertise<utils::msg::IMU>(topic_name, 2);
-
+          	this->m_pubBNO = this->m_ros_node->create_publisher<utils::msg::IMU>(topic_name, 2);
 
             if(DEBUG)
             {
+                auto logger = this->m_ros_node->get_logger();
                 std::cerr << "\n\n";
-                ROS_INFO_STREAM("====================================================================");
-                ROS_INFO_STREAM("[bno055_plugin] attached to: " << this->m_model->GetName());
-                ROS_INFO_STREAM("[bno055_plugin] publish to: "  << topic_name);
-                ROS_INFO_STREAM("[bno055_plugin] Usefull data: linear z, angular x, angular y, angular z");
-                ROS_INFO_STREAM("====================================================================");
+                RCLCPP_INFO_STREAM(logger, "====================================================================");
+                RCLCPP_INFO_STREAM(logger, "[bno055_plugin] attached to: " << this->m_model->GetName());
+                RCLCPP_INFO_STREAM(logger, "[bno055_plugin] publish to: "  << topic_name);
+                RCLCPP_INFO_STREAM(logger, "[bno055_plugin] Usefull data: linear z, angular x, angular y, angular z");
+                RCLCPP_INFO_STREAM(logger, "====================================================================");
             }
         }
 
@@ -47,11 +33,11 @@ namespace gazebo
         void BNO055::OnUpdate()
         {        
           
+            // TODO: accel fields are missing, is this intentional?
            	this->m_bno055_pose.roll = this->m_model->RelativePose().Rot().Roll();
-		this->m_bno055_pose.pitch = this->m_model->RelativePose().Rot().Pitch();
+            this->m_bno055_pose.pitch = this->m_model->RelativePose().Rot().Pitch();
            	this->m_bno055_pose.yaw = this->m_model->RelativePose().Rot().Yaw();
-           	
-            this->m_pubBNO.publish(this->m_bno055_pose);
+            this->m_pubBNO->publish(this->m_bno055_pose);
         };      
     }; //namespace trafficLight
     GZ_REGISTER_MODEL_PLUGIN(bno055::BNO055)

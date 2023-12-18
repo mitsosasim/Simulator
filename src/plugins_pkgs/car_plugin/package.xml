@@ -5,8 +5,8 @@
   <name>car_plugin</name>
   <version>1.0.0</version>
   <description>The car package (which is a plugin)</description>
-    <maintainer email="rares.lemnariu@ro.bosch.com"> Rares Lemnariu </maintainer>
-    <license>Bosch ECC</license>
+  <maintainer email="rares.lemnariu@ro.bosch.com"> Rares Lemnariu </maintainer>
+  <license>Bosch ECC</license>
 
   
   <depend>std_msgs</depend>
