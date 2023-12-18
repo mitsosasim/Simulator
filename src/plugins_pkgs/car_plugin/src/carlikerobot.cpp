@@ -130,8 +130,9 @@ namespace gazebo{
 
             if(DEBUG)
             {
-                RCLCPP_INFO(rclcpp::get_logger("CarPlugin"), "Angle:\t\t\t[%f, %f]", l_steer_left*180.0/PI,l_steer_right*180.0/PI);
-                ROS_INFO_STREAM("====================================================================");
+                auto logger = rclcpp::get_logger("CarPlugin");
+                RCLCPP_INFO(logger, "Angle:\t\t\t[%f, %f]", l_steer_left*180.0/PI,l_steer_right*180.0/PI);
+                RCLCPP_INFO_STREAM(logger, "====================================================================");
             }
             
 

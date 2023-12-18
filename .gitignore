@@ -1,5 +1,7 @@
 devel/
 build/
+install/
+log/
 .vscode/
 .catkin_workspace
 src/CMakeLists.txt

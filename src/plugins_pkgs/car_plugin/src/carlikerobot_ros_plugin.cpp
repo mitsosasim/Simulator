@@ -1,5 +1,7 @@
 #include "carlikerobot_ros_plugin.hpp"
 
+using std::placeholders::_1;
+
 #define DEBUG true
 
 namespace gazebo
@@ -7,79 +9,67 @@ namespace gazebo
     namespace carlikerobot
     {
         /// Movement serialHandler
-        CMessageHandler::CMessageHandler(std::string _modelName, IRobotCommandSetter* _setter)
+        CMessageHandler::CMessageHandler(rclcpp::Node::SharedPtr rosNode, IRobotCommandSetter* _setter)
         {
             this->_robotSetter = _setter;
+            this->_rosNode = rosNode;
 
             // Generate topic name
             std::string topicName = "/automobile/command";
             std::string listen_topicName = "/automobile/feedback";
 
-            if(!::ros::isInitialized())
-            {
-                int argc = 0;
-                char **argv = NULL;
+            auto logger = this->_rosNode->get_logger();
 
-                // Init a node with the name of _modelName
-                ::ros::init(argc, argv, "/" + _modelName, ::ros::init_options::NoSigintHandler);
-            }
-
-
-            this->_rosNode.reset(new ::rclcpp::Node("/serialNODEvirt"));
-
-            this->_commandSubscriber = this->_rosNode->subscribe(topicName, 1, &CMessageHandler::OnMsgCommand, this);
+            this->_commandSubscriber = this->_rosNode->create_subscription<std_msgs::msg::String>(topicName, 10, std::bind(&CMessageHandler::OnMsgCommand, this, std::placeholders::_1));
 
             // Feedback message
-			this->_feedbackPublisher = this->_rosNode->advertise<std_msgs::msg::String>(listen_topicName, 2);
+			this->_feedbackPublisher = this->_rosNode->create_publisher<std_msgs::msg::String>(listen_topicName, 2);
 		
             if (DEBUG)
             {
+                auto logger = this->_rosNode->get_logger();
                 std::cerr << "\n\n";
-                ROS_INFO_STREAM("====================================================================");
-                ROS_INFO_STREAM("[carlikerobot_ros_plugin] attached to: " << _modelName);
-                ROS_INFO_STREAM("[carlikerobot_ros_plugin] publish to: "  << topicName);
-                ROS_INFO_STREAM("[carlikerobot_ros_plugin] listen to: "  << listen_topicName);
-                ROS_INFO_STREAM("[carlikerobot_ros_plugin] Usefull data: /Response for ack, /Command for speed and steer");
-                ROS_INFO_STREAM("====================================================================");
+                RCLCPP_INFO_STREAM(logger, "====================================================================");
+                RCLCPP_INFO_STREAM(logger, "publish to: "  << topicName);
+                RCLCPP_INFO_STREAM(logger, "listen to: "  << listen_topicName);
+                RCLCPP_INFO_STREAM(logger, "Usefull data: /Response for ack, /Command for speed and steer");
+                RCLCPP_INFO_STREAM(logger, "====================================================================");
             }
         }
 
-	CMessageHandler::~CMessageHandler()
-	{
-		if (this->_rosNode != nullptr)
-		{
-			this->_rosNode -> shutdown();
-		}
-	}
+        CMessageHandler::~CMessageHandler()
+        {
+        }
 
         // Callback function for receiving messages on the /car_name/Command topic
-        void CMessageHandler::OnMsgCommand(std_msgs::msg::String _msg)
+        void CMessageHandler::OnMsgCommand(const std_msgs::msg::String::SharedPtr _msg)
         {           
         	rapidjson::Document doc;
-        	const char* c = _msg.data.c_str();
+            auto logger = this->_rosNode->get_logger();
+        	const char* c = _msg->data.c_str();
         	doc.Parse(c);
         	if (doc.HasMember("action"))
 		    {
 			    std::string command = doc["action"].GetString();
 		    	if(command =="1")
 		    	{
-		    		if (DEBUG){ROS_INFO_STREAM("Received SPED message");}
+		    		if (DEBUG){RCLCPP_INFO_STREAM(logger, "Received SPED message");}
 		    		if (doc.HasMember("speed")){ this->spedMessage(doc["speed"].GetFloat());}
-		    		else{ROS_INFO_STREAM("Invalid message"); this->unknownMessage();}
+		    		else{RCLCPP_INFO_STREAM(logger, "Invalid message"); this->unknownMessage();}
 		    	} else if (command =="2") {
-				    if (DEBUG){ROS_INFO_STREAM("Received STER message");}
+				    if (DEBUG){RCLCPP_INFO_STREAM(logger, "Received STER message");}
 				    if (doc.HasMember("steerAngle")){ this->sterMessage(doc["steerAngle"].GetFloat());}
-		    		else{ROS_INFO_STREAM("Invalid message"); this->unknownMessage();}
+		    		else{RCLCPP_INFO_STREAM(logger, "Invalid message"); this->unknownMessage();}
 		    	} else if (command =="3") {
-		            if (DEBUG){ROS_INFO_STREAM("Received BRAKE message");}
+		            if (DEBUG){RCLCPP_INFO_STREAM(logger, "Received BRAKE message");}
 		            if (doc.HasMember("steerAngle")){ this->brakeMessage(doc["steerAngle"].GetFloat());}
-		    		else{ROS_INFO_STREAM("Invalid message"); this->unknownMessage();}
+		    		else{RCLCPP_INFO_STREAM(logger, "Invalid message"); this->unknownMessage();}
 		    	} else {
-		            ROS_INFO_STREAM("Received UNKNOWN message");
+		            RCLCPP_INFO_STREAM(logger, "Received UNKNOWN message");
 		            this->unknownMessage();
 		    	}
 	    	} else {
-	    		ROS_INFO_STREAM("Invalid message");
+	    		RCLCPP_INFO_STREAM(logger, "Invalid message");
 	    		this->unknownMessage();
 	    	}
         }
@@ -88,7 +78,7 @@ namespace gazebo
         {
             std_msgs::msg::String l_resp;
             l_resp.data = "@MESS:err;;";
-            this->_feedbackPublisher.publish(l_resp);
+            this->_feedbackPublisher->publish(l_resp);
         }
 
         void CMessageHandler::brakeMessage(float _msg_val)
@@ -98,7 +88,7 @@ namespace gazebo
             _robotSetter->setCommand();
             std_msgs::msg::String l_resp;
             l_resp.data= "@3:ack;;";
-            this->_feedbackPublisher.publish(l_resp);
+            this->_feedbackPublisher->publish(l_resp);
         }
 
         void CMessageHandler::spedMessage(float _msg_val)
@@ -107,7 +97,7 @@ namespace gazebo
             _robotSetter->setCommand();
             std_msgs::msg::String l_resp;
             l_resp.data = "@1:ack;;";
-            this->_feedbackPublisher.publish(l_resp);
+            this->_feedbackPublisher->publish(l_resp);
         }
 
         void CMessageHandler::sterMessage(float _msg_val)
@@ -116,7 +106,7 @@ namespace gazebo
             _robotSetter->setCommand();
             std_msgs::msg::String l_resp;
             l_resp.data = "@2:ack;;";
-            this->_feedbackPublisher.publish(l_resp);
+            this->_feedbackPublisher->publish(l_resp);
         }
 
         /// end movement serialHandler.
@@ -128,11 +118,12 @@ namespace gazebo
             double l_wheelbase   = 0;
             double l_axletrack   = 0;  
             double l_wheelradius = 0; 
+            auto logger = rclcpp::get_logger("CarLikeRobotPlugin");
             
             if(DEBUG)
             {
                 std::cerr << "\n\n";
-                ROS_INFO_STREAM("====================================================================");
+                RCLCPP_INFO_STREAM(logger, "====================================================================");
             }
 
             if(f_sdf->HasElement("wheelbase"))
@@ -141,14 +132,14 @@ namespace gazebo
 
                 if(DEBUG)
                 {
-                    ROS_INFO_STREAM("OK [wheelbase]   = " << l_wheelbase);
+                    RCLCPP_INFO_STREAM(logger, "OK [wheelbase]   = " << l_wheelbase);
                 }
             }
             else
             {
                 if(DEBUG)
                 {
-                    ROS_INFO_STREAM("WARNING: [wheelbase] = 0 DEFAULT");
+                    RCLCPP_INFO_STREAM(logger, "WARNING: [wheelbase] = 0 DEFAULT");
                 }
             }
             
@@ -158,12 +149,12 @@ namespace gazebo
 
                 if(DEBUG)
                 {
-                    ROS_INFO_STREAM("OK [axletrack]   = " << l_axletrack);
+                    RCLCPP_INFO_STREAM(logger, "OK [axletrack]   = " << l_axletrack);
                 }
             }
             else
             {
-                ROS_INFO_STREAM("WARNING: [axletrack] = 0 DEFAULT");
+                RCLCPP_INFO_STREAM(logger, "WARNING: [axletrack] = 0 DEFAULT");
             }
             
             if(f_sdf->HasElement("wheelradius"))
@@ -172,7 +163,7 @@ namespace gazebo
 
                 if(DEBUG)
                 {
-                    ROS_INFO_STREAM("OK [wheelradius] = " << l_wheelradius);
+                    RCLCPP_INFO_STREAM(logger, "OK [wheelradius] = " << l_wheelradius);
                 }
             }
             else
@@ -201,10 +192,10 @@ namespace gazebo
 
                 if(DEBUG)
                 {
-                    ROS_INFO_STREAM("====================================================================");
+                    RCLCPP_INFO_STREAM(logger, "====================================================================");
                     std::cerr << "\n\n";
-                    ROS_INFO_STREAM("====================================================================");
-                    ROS_INFO_STREAM("FOUND: [speed_wheel_joints]");
+                    RCLCPP_INFO_STREAM(logger, "====================================================================");
+                    RCLCPP_INFO_STREAM(logger, "FOUND: [speed_wheel_joints]");
                 }
 
                 // start [kp] [ki] [kd] 
@@ -214,7 +205,7 @@ namespace gazebo
                     
                     if(DEBUG)
                     {
-                        ROS_INFO_STREAM("OK [kp] = " << l_kp_speed);
+                        RCLCPP_INFO_STREAM(logger, "OK [kp] = " << l_kp_speed);
                     } 
                 }
                 else
@@ -228,7 +219,7 @@ namespace gazebo
                     
                     if(DEBUG)
                     {
-                        ROS_INFO_STREAM("OK [kd] = " << l_kd_speed);
+                        RCLCPP_INFO_STREAM(logger, "OK [kd] = " << l_kd_speed);
                     }
                 }
                 else
@@ -242,7 +233,7 @@ namespace gazebo
                     
                     if(DEBUG)
                     {
-                        ROS_INFO_STREAM("OK [ki] = " << l_ki_speed);
+                        RCLCPP_INFO_STREAM(logger, "OK [ki] = " << l_ki_speed);
                     }
                 }
                 else
@@ -256,10 +247,10 @@ namespace gazebo
                 {
                     if(DEBUG)
                     {
-                        ROS_INFO_STREAM("====================================================================");
+                        RCLCPP_INFO_STREAM(logger, "====================================================================");
                         std::cerr << "\n\n";
-                        ROS_INFO_STREAM("====================================================================");
-                        ROS_INFO_STREAM("FOUND: [front_wheel_joints]");
+                        RCLCPP_INFO_STREAM(logger, "====================================================================");
+                        RCLCPP_INFO_STREAM(logger, "FOUND: [front_wheel_joints]");
                     }
 
                     l_front_wheel_sdf = l_speed_wheel_sdf->GetElement("front_wheel_joints");
@@ -275,7 +266,7 @@ namespace gazebo
                     {
                         if(DEBUG)
                         {
-                            ROS_INFO_STREAM("OK front [leftjoint]  name = " << l_left.c_str());
+                            RCLCPP_INFO_STREAM(logger, "OK front [leftjoint]  name = " << l_left.c_str());
                         }
                     }
 
@@ -289,7 +280,7 @@ namespace gazebo
                     {
                         if(DEBUG)
                         {
-                            ROS_INFO_STREAM("OK front [rightjoint] name = " << l_right.c_str());
+                            RCLCPP_INFO_STREAM(logger, "OK front [rightjoint] name = " << l_right.c_str());
                         }
                     }
 
@@ -304,7 +295,7 @@ namespace gazebo
                     {
                         if(DEBUG)
                         {
-                            ROS_INFO_STREAM("OK front [rightjoint] was found in model");
+                            RCLCPP_INFO_STREAM(logger, "OK front [rightjoint] was found in model");
                         }
                     }
 
@@ -319,7 +310,7 @@ namespace gazebo
                     {
                         if(DEBUG)
                         {
-                            ROS_INFO_STREAM("OK front [leftjoint]  was found in model");
+                            RCLCPP_INFO_STREAM(logger, "OK front [leftjoint]  was found in model");
                         }
                     }
 
@@ -345,10 +336,10 @@ namespace gazebo
                 {
                     if(DEBUG)
                     {
-                        ROS_INFO_STREAM("====================================================================");
+                        RCLCPP_INFO_STREAM(logger, "====================================================================");
                         std::cerr << "\n\n";
-                        ROS_INFO_STREAM("====================================================================");
-                        ROS_INFO_STREAM("FOUND: [rear_wheel_joints]");
+                        RCLCPP_INFO_STREAM(logger, "====================================================================");
+                        RCLCPP_INFO_STREAM(logger, "FOUND: [rear_wheel_joints]");
                     }
 
                     l_rear_wheel_sdf = l_speed_wheel_sdf->GetElement("rear_wheel_joints");
@@ -364,7 +355,7 @@ namespace gazebo
                     {
                         if(DEBUG)
                         {
-                            ROS_INFO_STREAM("OK rear [leftjoint]  name = " << l_left.c_str());
+                            RCLCPP_INFO_STREAM(logger, "OK rear [leftjoint]  name = " << l_left.c_str());
                         }
                     }
 
@@ -378,7 +369,7 @@ namespace gazebo
                     {
                        if(DEBUG)
                        {
-                            ROS_INFO_STREAM("OK rear [rightjoint] name = " << l_right.c_str());
+                            RCLCPP_INFO_STREAM(logger, "OK rear [rightjoint] name = " << l_right.c_str());
                        }
                     }
 
@@ -393,7 +384,7 @@ namespace gazebo
                     {
                         if(DEBUG)
                         {
-                            ROS_INFO_STREAM("OK rear [rightjoint] was found in model");
+                            RCLCPP_INFO_STREAM(logger, "OK rear [rightjoint] was found in model");
                         }
                     }
 
@@ -408,7 +399,7 @@ namespace gazebo
                     {
                         if(DEBUG)
                         {
-                            ROS_INFO_STREAM("OK rear [leftjoint] was found in model");
+                            RCLCPP_INFO_STREAM(logger, "OK rear [leftjoint] was found in model");
                         }
                     }
 
@@ -438,10 +429,10 @@ namespace gazebo
                 
                 if(DEBUG)
                 {
-                    ROS_INFO_STREAM("====================================================================");
+                    RCLCPP_INFO_STREAM(logger, "====================================================================");
                     std::cerr << "\n\n";
-                    ROS_INFO_STREAM("====================================================================");    
-                    ROS_INFO_STREAM("FOUND: [steer_wheel_joints]");
+                    RCLCPP_INFO_STREAM(logger, "====================================================================");    
+                    RCLCPP_INFO_STREAM(logger, "FOUND: [steer_wheel_joints]");
                 }
                 
                 double l_kp_position = 0;
@@ -454,7 +445,7 @@ namespace gazebo
                     l_kp_position = l_steering_joints_sdf->Get<double>("kp");
                     if(DEBUG)
                     {
-                        ROS_INFO_STREAM("OK [kp] = " << l_kp_position);
+                        RCLCPP_INFO_STREAM(logger, "OK [kp] = " << l_kp_position);
                     }
                 }
                 else
@@ -467,7 +458,7 @@ namespace gazebo
                     l_kd_position = l_steering_joints_sdf->Get<double>("kd");
                     if(DEBUG)
                     {
-                        ROS_INFO_STREAM("OK [kd] = " << l_kd_position);
+                        RCLCPP_INFO_STREAM(logger, "OK [kd] = " << l_kd_position);
                     }
                 }
                 else
@@ -481,7 +472,7 @@ namespace gazebo
                     
                     if(DEBUG)
                     {
-                        ROS_INFO_STREAM("OK [ki] = " << l_ki_position);
+                        RCLCPP_INFO_STREAM(logger, "OK [ki] = " << l_ki_position);
                     }
                 }
                 else
@@ -528,15 +519,17 @@ namespace gazebo
 
         void CCarLikeRobotRosPlugin::Load(physics::ModelPtr _parent, sdf::ElementPtr _sdf)
         {
-            
             // Safety check
             if (_parent->GetJointCount() == 0)
             {
                 std::cerr << "Invalid joint count, CarLikeRobotPlugin plugin not loaded\n";
                 return;
             }
+
             this->_model = _parent;
             bool isLoaded = this->LoadParameterJoints(_sdf);
+            auto rosNode = gazebo_ros::Node::Get(_sdf);
+
             if(!isLoaded){
                 return;
             }
@@ -546,7 +539,7 @@ namespace gazebo
 
             this->setCommand();
             
-            _messageHandler = std::shared_ptr<CMessageHandler>(new CMessageHandler(this->_model->GetName(),this));
+            _messageHandler = std::shared_ptr<CMessageHandler>(new CMessageHandler(rosNode,this));
         }
 
         void CCarLikeRobotRosPlugin::setCommand(){

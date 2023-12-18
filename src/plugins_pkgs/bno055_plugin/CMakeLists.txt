@@ -7,7 +7,7 @@ find_package(gazebo_ros REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(utils REQUIRED)
 
-generate_messages(DEPENDENCIES)
+rosidl_generate_interfaces(${PROJECT_NAME} DEPENDENCIES)
 
 include_directories(include ${GAZEBO_INCLUDE_DIRS})
 

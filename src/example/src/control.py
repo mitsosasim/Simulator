@@ -33,8 +33,7 @@ from pynput import keyboard
 
 from RcBrainThread import RcBrainThread
 from std_msgs.msg import String
-
-import rospy
+import rclpy
 
 class RemoteControlTransmitterProcess():
     # ===================================== INIT==========================================
@@ -52,9 +51,8 @@ class RemoteControlTransmitterProcess():
         self.rcBrain   =  RcBrainThread()   
         
         rclpy.init()
-        
-        node = rclpy.create_node('EXAMPLEnode', anonymous=False)     
-        self.publisher = node.create_publisher(String, queue_size=1, '/automobile/command')
+        node = rclpy.create_node('EXAMPLEnode')     
+        self.publisher = node.create_publisher(String, '/automobile/command', 1)
 
     # ===================================== RUN ==========================================
     def run(self):
@@ -63,7 +61,7 @@ class RemoteControlTransmitterProcess():
         with keyboard.Listener(on_press = self.keyPress, on_release = self.keyRelease) as listener: 
             print("joining...")
             listener.join()
-	
+
     # ===================================== KEY PRESS ====================================
     def keyPress(self,key):
         """Processing the key pressing 
@@ -90,7 +88,7 @@ class RemoteControlTransmitterProcess():
         
         """ 
         if key == keyboard.Key.esc:                        #exit key      
-            self.publisher.publish('{"action":"3","steerAngle":0.0}')   
+            self.publisher.publish(String(data='{"action":"3","steerAngle":0.0}'))
             return False
 
         if key.char in self.allKeys:
@@ -111,6 +109,7 @@ class RemoteControlTransmitterProcess():
         if command is not None:
 	
             command = json.dumps(command)
+            command = String(data=command)
             self.publisher.publish(command)  
             
 if __name__ == '__main__':
