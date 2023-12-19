@@ -29,7 +29,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
 
 
-import rospy
+import rclpy
 import cv2
 import numpy as np
 from sensor_msgs.msg import Image
@@ -44,9 +44,10 @@ class CameraHandler():
         self.bridge = CvBridge()
         self.cv_image = np.zeros((640, 480))
         rclpy.init()
-        node = rclpy.create_node('CAMnod', anonymous=True)
-        self.image_sub = node.create_subscription(Image, "/automobile/image_raw", self.callback)
-        rospy.spin()
+        node = rclpy.create_node('CAMnod')
+        # TODO: Changed from "/automobile/image_raw", I don't understand why.
+        self.image_sub = node.create_subscription(Image, "/camera1/image_raw", self.callback, 10)
+        rclpy.spin(node)
 
     def callback(self, data):
         """
@@ -59,7 +60,4 @@ class CameraHandler():
     
             
 if __name__ == '__main__':
-    try:
-        nod = CameraHandler()
-    except rospy.ROSInterruptException:
-        pass
+    nod = CameraHandler()
