@@ -7,18 +7,11 @@ namespace gazebo
     namespace trafficLight
     {   
         TrafficLight::TrafficLight():ModelPlugin() {}
-	TrafficLight::~TrafficLight()
-	{
-		if (this->m_ros_node != nullptr)
-		{
-			this->m_ros_node -> shutdown();
-		}
-		ROS_INFO_STREAM("ENDING");
-	}
-     
+
         void TrafficLight::Load(physics::ModelPtr model_ptr, sdf::ElementPtr sdf_ptr)
         {        	
 			// Save a pointer to the model for later use
+            this->m_ros_node = gazebo_ros::Node::Get(sdf_ptr);
 			this->m_model = model_ptr;
 			this->name = this->m_model->GetName();
 			
@@ -26,6 +19,7 @@ namespace gazebo
 			this->m_node = transport::NodePtr(new transport::Node());
 			this->m_node->Init();
         	
+            // TODO: I don't see "~/light/modify" anywhere else in the codebase, where is it used?
         	this->m_pubLight = this->m_node->Advertise<gazebo::msgs::Light>("~/light/modify");
         	
         	// Save pointers to each link of the traffic light (aka lens)
@@ -33,27 +27,17 @@ namespace gazebo
 			this->m_yellow_lens_link	= this->m_model->GetLink("yellow_lens");
 			this->m_red_lens_link	 	= this->m_model->GetLink("red_lens");
       	
-            // Initialize ros, if it has not already bee initialized.
-			if (!ros::isInitialized())
-			{
-			  int argc = 0;
-			  char **argv = NULL;
-			  ros::init(argc, argv, "gazebo_client", ros::init_options::NoSigintHandler);
-			}
-			
-			// Create our ROS node. This acts in a similar manner to the Gazebo node
-			this->m_ros_node.reset(new rclcpp::Node("trafficlightNODEvirt" + this->name));
-
 			// Create a subscriber
-			this->m_ros_subscriber = this->m_ros_node->subscribe("/automobile/trafficlight/" + this->name, 1, &trafficLight::TrafficLight::OnRosMsg, this);
+			this->m_ros_subscriber = this->m_ros_node->create_subscription<std_msgs::msg::Byte>("/automobile/trafficlight/" + this->name, 1, std::bind(&trafficLight::TrafficLight::OnRosMsg, this, std::placeholders::_1));
 
 			if(DEBUG)
             {
+                auto logger = this->m_ros_node->get_logger();
                 std::cerr << "\n\n";
-                ROS_INFO_STREAM("====================================================================");
-                ROS_INFO_STREAM("[traffic_light_plugin] attached to: " << this->name);
-                ROS_INFO_STREAM("[traffic_light_plugin] listen to: /traffic_light_topic ");
-                ROS_INFO_STREAM("====================================================================");
+                RCLCPP_INFO_STREAM(logger, "====================================================================");
+                RCLCPP_INFO_STREAM(logger, "[traffic_light_plugin] attached to: " << this->name);
+                RCLCPP_INFO_STREAM(logger, "[traffic_light_plugin] listen to: /traffic_light_topic ");
+                RCLCPP_INFO_STREAM(logger, "====================================================================");
             }
         }
 
