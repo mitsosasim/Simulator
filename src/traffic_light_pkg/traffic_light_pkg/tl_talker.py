@@ -10,7 +10,8 @@
 #  *****************************************************************************************
 #
 
-import rospy
+import rclpy
+import rclpy.time
 
 from std_msgs.msg import Byte
 from itertools import cycle
@@ -34,32 +35,30 @@ class trafficlight():
     def __init__(self):
         #Constants
         #Time for traffic light to change colors in seconds
-        self.TL_interval = 1
+        self.TL_interval = rclpy.time.Duration(seconds=1)
 
         #Initialize the node
         rclpy.init()
-        node = rclpy.create_node('traffic_light_publisher_node', anonymous=True)
+        node = rclpy.create_node('traffic_light_publisher_node')
 
         self.trafficlights = []
         #Create a new publisher, specify the topic name, type of message and queue size
-        tlma = node.create_publisher(Byte, queue_size=1, '/automobile/trafficlight/master')
-        tlsl = node.create_publisher(Byte, queue_size=1, '/automobile/trafficlight/slave')
-        tlam = node.create_publisher(Byte, queue_size=1, '/automobile/trafficlight/antimaster')
-        tlst = node.create_publisher(Byte, queue_size=1, '/automobile/trafficlight/start')
+        tlma = node.create_publisher(Byte, '/automobile/trafficlight/master', 1)
+        tlsl = node.create_publisher(Byte, '/automobile/trafficlight/slave', 1)
+        tlam = node.create_publisher(Byte, '/automobile/trafficlight/antimaster', 1)
+        tlst = node.create_publisher(Byte, '/automobile/trafficlight/start', 1)
         
         self.trafficlights.append(tlma)
         self.trafficlights.append(tlsl)
         self.trafficlights.append(tlam)
         self.trafficlights.append(tlst)
 
-        self.rate = rospy.Rate(10) 
+        self.node = node
+        self.rate = node.create_rate(10)
 
     #Function that publishes into the TL Topic the TL message (id and state)
     def sendState(self, id, state):
-        Traffic_light = Byte()
-        Traffic_light = state
-
-        self.trafficlights[id].publish(Traffic_light)
+        self.trafficlights[id].publish(Byte(data=state.to_bytes(1)))
 
     def run(self):
         # The middle intersection 
@@ -85,10 +84,10 @@ class trafficlight():
     
         # Cycles of patterns
         self.maincycle       = cycle(self.pattern)      
-        self.last_time = rospy.get_rostime().secs - self.TL_interval*2
+        self.last_time = self.node.get_clock().now() - self.TL_interval - self.TL_interval
 
-        while not rospy.is_shutdown():
-            current_time = rospy.get_rostime().secs
+        while rclpy.ok():
+            current_time = self.node.get_clock().now()
             if current_time - self.last_time > self.TL_interval:
                 self.main_state = next(self.maincycle)
                 self.last_time  = current_time
@@ -105,9 +104,12 @@ class trafficlight():
 
             self.rate.sleep() #publish at 10hz
 
+
+def main():
+    nod = trafficlight()
+    nod.run()
+
+
 if __name__ == '__main__':
-    try:
-        nod = trafficlight()
-        nod.run()
-    except rospy.ROSInterruptException:
-        pass
+    nod = trafficlight()
+    nod.run()

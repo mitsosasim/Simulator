@@ -58,6 +58,10 @@ class CameraHandler():
         cv2.imshow("Frame preview", self.cv_image)
         key = cv2.waitKey(1)
     
-            
+
+def main():
+    nod = CameraHandler()
+
+
 if __name__ == '__main__':
     nod = CameraHandler()

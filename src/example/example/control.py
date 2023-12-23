@@ -31,7 +31,7 @@
 import json
 from pynput import keyboard
 
-from RcBrainThread import RcBrainThread
+from .RcBrainThread import RcBrainThread
 from std_msgs.msg import String
 import rclpy
 
@@ -111,7 +111,13 @@ class RemoteControlTransmitterProcess():
             command = json.dumps(command)
             command = String(data=command)
             self.publisher.publish(command)  
+
+
+def main():
+    nod = RemoteControlTransmitterProcess()
+    nod.run()
             
+
 if __name__ == '__main__':
     nod = RemoteControlTransmitterProcess()
     nod.run()
