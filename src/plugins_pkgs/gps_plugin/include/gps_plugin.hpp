@@ -4,10 +4,10 @@
 #include <gazebo/common/Plugin.hh>
 #include <gazebo/common/common.hh>
 #include <gazebo/physics/physics.hh>
-
+#include <gazebo_ros/node.hpp>
 
 #include "rclcpp/rclcpp.hpp"
-#include <utils/msg/Localisation.hpp>
+#include <utils/msg/localisation.hpp>
 
 namespace gazebo
 {
@@ -16,20 +16,12 @@ namespace gazebo
         class GPS: public ModelPlugin
     	{
         private: 
-            physics::ModelPtr                   m_model;
-            rclcpp::NodePtr		  nh;
-            rclcpp::Timer				  timer;
+            physics::ModelPtr m_model;
+            rclcpp::TimerBase::SharedPtr timer;
+            rclcpp::Node::SharedPtr m_ros_node;
+            rclcpp::Publisher<utils::msg::Localisation>::SharedPtr m_pubGPS;
+            utils::msg::Localisation m_gps_pose;
 
-	    /** ROS INTEGRATION **/
-            // A node use for ROS transport
-            std::unique_ptr<rclcpp::Node>    m_ros_node;
-
-            // A ROS publisher
-            ros::Publisher                      m_pubGPS;
-
-            // The gps message
-            utils::msg::Localisation            m_gps_pose;
-            
         // Default constructor
         public: GPS();
         public: void Load(physics::ModelPtr, sdf::ElementPtr);
