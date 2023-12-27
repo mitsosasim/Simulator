@@ -15,3 +15,25 @@ Tips on how to install and work on it, can be found in the
 
 ## The documentation is available in details here:
 [Documentation](https://bosch-future-mobility-challenge-documentation.readthedocs-hosted.com/data/simulator.html)
+
+## Running
+
+Dependencies:
+- `gazebo` 11 (classic)
+- `ros2-humble`
+- `ros2-humble-gazebo-{ros,msgs,dev,plugins}`
+- `poetry`
+- `direnv`
+- `just`
+
+`direnv` is useful for automating the environment setup with `.envrc` instead of sourcing manually.
+The poetry venv is also set up in `.envrc`. The first time `.envrc` is sourced, the file
+`./install/local_setup.bash` doesn't exist so it will throw a warning. After running
+`colcon build`, this should be fine. The `.envrc` has only been tested on arch linux.
+Modify it according to your system, if necessary.
+```
+$ poetry install
+$ colcon build
+```
+
+Then exit and enter the directory to source the new environment.

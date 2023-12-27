@@ -330,7 +330,7 @@
         <kd>0.1</kd>
       </steer_wheel_joints>
       <initial_steer>0.0</initial_steer>
-      <initial_speed>1.0</initial_speed>
+      <initial_speed>0.0</initial_speed>
       <robotNamespace>/</robotNamespace>
     </plugin>
 

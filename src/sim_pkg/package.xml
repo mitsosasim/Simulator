@@ -8,6 +8,9 @@
   <maintainer email="rares.lemnariu@ro.bosch.com"> Rares Lemnariu </maintainer>
   <license>Bosch ECC</license>
 
+  <exec_depend>ros2launch</exec_depend>
+  <exec_depend>ros2run</exec_depend>
+
   <buildtool_depend>ament_cmake</buildtool_depend>
   <export>
     <build_type>ament_cmake</build_type>

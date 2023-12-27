@@ -6,20 +6,20 @@
     <node
         name  = "PED_OBJ_KL"
         pkg   = "gazebo_ros"
-        type  = "spawn_model"
-        args  = "-file $(find models_pkg)/pedestrian_object/model.sdf -sdf -model PED_OBJ_KL -x 6.427 -y -1.422 -z 0 -R 0 -P 0 -Y 3.141591"/>
+        exec = "spawn_entity.py"
+        args  = "-file $(find-pkg-share models_pkg)/pedestrian_object/model.sdf -entity PED_OBJ_KL -x 6.427 -y -1.422 -z 0 -R 0 -P 0 -Y 3.141591"/>
 
     <node
         name  = "PED_OBJ_MN"
         pkg   = "gazebo_ros"
-        type  = "spawn_model"
-        args  = "-file $(find models_pkg)/pedestrian_object/model.sdf -sdf -model PED_OBJ_MN -x 1.998 -y -6.320 -z 0 -R 0 -P 0 -Y 3.141591"/>
+        exec = "spawn_entity.py"
+        args  = "-file $(find-pkg-share models_pkg)/pedestrian_object/model.sdf -entity PED_OBJ_MN -x 1.998 -y -6.320 -z 0 -R 0 -P 0 -Y 3.141591"/>
 	
     <node
         name  = "PED_OBJ_AD_H"
         pkg   = "gazebo_ros"
-        type  = "spawn_model"
-        args  = "-file $(find models_pkg)/pedestrian_object/model.sdf -sdf -model PED_OBJ_AD_H -x 0.172 -y -12.200 -z 0 -R 0 -P 0 -Y 4.712391"/>
+        exec = "spawn_entity.py"
+        args  = "-file $(find-pkg-share models_pkg)/pedestrian_object/model.sdf -entity PED_OBJ_AD_H -x 0.172 -y -12.200 -z 0 -R 0 -P 0 -Y 4.712391"/>
 
 
 </launch>

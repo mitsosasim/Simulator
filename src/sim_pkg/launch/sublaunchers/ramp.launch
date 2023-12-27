@@ -4,6 +4,6 @@
   <node
     name  = "RAMP"
     pkg   = "gazebo_ros"
-    type  = "spawn_model"
-    args  = "-file $(find models_pkg)/ramp/model.sdf -sdf -model RAMP -x 0.651761 -y -4.561203 -z 0.0 -R 0 -P 0 -Y 1.569651"/>  
+    exec = "spawn_entity.py"
+    args  = "-file $(find-pkg-share models_pkg)/ramp/model.sdf -entity RAMP -x 0.651761 -y -4.561203 -z 0.0 -R 0 -P 0 -Y 1.569651"/>  
  </launch>

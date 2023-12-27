@@ -5,7 +5,7 @@
     <node
           name  = "rcCar"
     	    pkg   = "gazebo_ros"
-    	    type  = "spawn_model"
-	    args  = "-file $(find models_pkg)/rcCar_assembly_REC/model.sdf -model automobile -sdf -x 0.82 -y -14.91 -z 0.032939 -Y 1.570796"/>
+    	    exec = "spawn_entity.py"
+	    args  = "-file $(find-pkg-share models_pkg)/rcCar_assembly_REC/model.sdf -entity automobile -x 0.82 -y -14.91 -z 0.032939 -Y 1.570796"/>
  
   </launch>
