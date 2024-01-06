@@ -8,8 +8,8 @@
   <include file="$(find-pkg-share sim_pkg)/launch/sublaunchers/prohibited_signs.launch"/>
   <include file="$(find-pkg-share sim_pkg)/launch/sublaunchers/oneway_signs.launch"/>
   <include file="$(find-pkg-share sim_pkg)/launch/sublaunchers/parking_signs.launch"/>
-  <include file="$(find-pkg-share sim_pkg)/launch/sublaunchers/pedestrian_objects.launch"/>
   <include file="$(find-pkg-share sim_pkg)/launch/sublaunchers/crosswalk_signs.launch"/>
+  <include file="$(find-pkg-share sim_pkg)/launch/sublaunchers/pedestrian_objects.launch"/>
   <include file="$(find-pkg-share sim_pkg)/launch/sublaunchers/priority_signs.launch"/>
   <include file="$(find-pkg-share sim_pkg)/launch/sublaunchers/roundabout_signs.launch"/>
   <include file="$(find-pkg-share sim_pkg)/launch/sublaunchers/stop_signs.launch"/>
