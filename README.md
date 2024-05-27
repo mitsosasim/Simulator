@@ -1,4 +1,12 @@
-Code made available by Team Gradient, in the BFMC2024... Was not tested by the organizing team!
+Code made available by Team Gradient, in the BFMC2024... The code was not tested by the organizing team!
+
+The following mentions are done by the team:
+•	Was not able to test traffic light, may or may not work.
+•	Camera node path changed from /camera/image_raw to /automobile/image_raw
+•	There are many warnings on launch, but the majority seem to have been there prior to the port; 
+•	map_with_all_objects.launch is a bit broken. I detail the issue in the justfile and provide a hacky workaround, but the root cause should be dealt with.
+•	The port is to Gazebo Classic, not Ignition. I don't know how much work would be required to Ignition, but it's likely a good amount. Though Gazebo Classic is much easier to install than ROS 1, so I still consider this a win.
+
 
 <img src="https://github.com/ECC-BFMC/Simulator/blob/main/Picture1.png" width=30% height=30%>
 
