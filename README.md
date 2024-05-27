@@ -1,3 +1,5 @@
+Code made available by Team Gradient, in the BFMC2024... Was not tested by the organizing team!
+
 <img src="https://github.com/ECC-BFMC/Simulator/blob/main/Picture1.png" width=30% height=30%>
 
 # BFMC Simulator Project
