@@ -57,6 +57,12 @@
       <name>car_body</name>
     </include>
 
+    <include>
+      <uri>model://lidar</uri>
+      <pose>0.26 0.0 0.01 0 0 0</pose>
+      <name>lidar</name>
+    </include>
+
     <!-- LIST OF JOINTS -->
     <joint name='joint_leftrear_rim' type='revolute'>
       <parent>chassis::link</parent>
@@ -284,7 +290,6 @@
       </physics>
     </joint>
 
-
     <!-- fixed joint for the camera -->
     <joint name='joint_camera' type='fixed'>
       <parent>chassis::link</parent>
@@ -304,7 +309,13 @@
       </physics>
     </joint>
 
-    <!-- Plugin  -->
+    <!-- fixed joint for the lidar -->
+    <joint name="lidar_joint" type="fixed">
+      <parent>chassis::link</parent>
+      <child>lidar::lidar_link</child>
+      <pose frame=''>0 0 0 0 -0 0</pose>
+    </joint>
+
     <plugin name='CarLikeRobotPlugin' filename='libcar_plugin.so'>
       <wheelbase>0.26</wheelbase>
       <axletrack>0.162</axletrack>
@@ -331,7 +342,7 @@
       </steer_wheel_joints>
       <initial_steer>0.0</initial_steer>
       <initial_speed>0.0</initial_speed>
-      <robotNamespace>/</robotNamespace>
+      <robotNamespace>automobile</robotNamespace>
     </plugin>
 
     <plugin name='bno055' filename='libbno055_plugin.so'> </plugin>
