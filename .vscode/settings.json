@@ -54,5 +54,15 @@
         "xlocmes": "cpp",
         "xlocmon": "cpp",
         "xloctime": "cpp"
-    }
+    },
+    "python.autoComplete.extraPaths": [
+        "/home/mekatronom/Simulator/devel/lib/python3/dist-packages",
+        "/home/mekatronom/boschmekatronom_ws/BoschMekatronom/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/mekatronom/Simulator/devel/lib/python3/dist-packages",
+        "/home/mekatronom/boschmekatronom_ws/BoschMekatronom/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ]
 }

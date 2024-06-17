@@ -1,0 +1,17 @@
+digraph G {
+"automobile_chassis_link" -> "automobile_car_body_link"[label=" Broadcaster: /robot_state_publisher\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"odom" -> "automobile_chassis_link"[label=" Broadcaster: /ekf_localization\nAverage rate: 30.242\nBuffer length: 4.96\nMost recent transform: 353.335\nOldest transform: 348.375\n"];
+"automobile_chassis_link" -> "automobile_camera_link_camera"[label=" Broadcaster: /robot_state_publisher\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"automobile_chassis_link" -> "automobile_lidar_lidar_link"[label=" Broadcaster: /robot_state_publisher\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"map" -> "odom"[label=" Broadcaster: /map_to_odom_broadcaster\nAverage rate: 99.459\nBuffer length: 4.987\nMost recent transform: 353.369\nOldest transform: 348.382\n"];
+"automobile_steer_left_link_steer" -> "automobile_wheel_front_left_link_rim"[label=" Broadcaster: /robot_state_publisher\nAverage rate: 10.204\nBuffer length: 4.9\nMost recent transform: 353.3\nOldest transform: 348.4\n"];
+"automobile_chassis_link" -> "automobile_steer_left_link_steer"[label=" Broadcaster: /robot_state_publisher\nAverage rate: 10.204\nBuffer length: 4.9\nMost recent transform: 353.3\nOldest transform: 348.4\n"];
+"automobile_chassis_link" -> "automobile_wheel_rear_left_link_rim"[label=" Broadcaster: /robot_state_publisher\nAverage rate: 10.204\nBuffer length: 4.9\nMost recent transform: 353.3\nOldest transform: 348.4\n"];
+"automobile_steer_right_link_steer" -> "automobile_wheel_front_right_link_rim"[label=" Broadcaster: /robot_state_publisher\nAverage rate: 10.204\nBuffer length: 4.9\nMost recent transform: 353.3\nOldest transform: 348.4\n"];
+"automobile_chassis_link" -> "automobile_steer_right_link_steer"[label=" Broadcaster: /robot_state_publisher\nAverage rate: 10.204\nBuffer length: 4.9\nMost recent transform: 353.3\nOldest transform: 348.4\n"];
+"automobile_chassis_link" -> "automobile_wheel_rear_right_link_rim"[label=" Broadcaster: /robot_state_publisher\nAverage rate: 10.204\nBuffer length: 4.9\nMost recent transform: 353.3\nOldest transform: 348.4\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 353.365"[ shape=plaintext ] ;
+}->"map";
+}
