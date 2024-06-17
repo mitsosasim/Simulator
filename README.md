@@ -1,10 +1,10 @@
 <img src="https://github.com/ECC-BFMC/Simulator/blob/main/Picture1.png" width=30% height=30%>
 
-From new parkour:\n
+From new parkour:
 
 <img src="https://github.com/KOU-Mekatronom/Simulator/blob/main/parkour.png" width=30% height=30%>
 
-From added RVIZ:\n
+From added RVIZ:
 
 
 <img src="https://github.com/KOU-Mekatronom/Simulator/blob/main/rviz.png" width=30% height=30%>
