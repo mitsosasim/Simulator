@@ -107,15 +107,19 @@ namespace gazebo
             _robotSetter->setCommand();
             std_msgs::String l_resp;
             l_resp.data = "@1:ack;;";
-            this->_feedbackPublisher.publish(l_resp);
+            // this->_feedbackPublisher.publish(l_resp);
         }
 
         void CMessageHandler::sterMessage(float _msg_val)
         {
-            _robotSetter->f_steer = _msg_val;
+            _robotSetter->f_steer = -1*_msg_val;
             _robotSetter->setCommand();
-            std_msgs::String l_resp;
-            l_resp.data = "@2:ack;;";
+            ROS_INFO("f_speed and f_steer: %f, %f", _robotSetter->f_speed, _robotSetter->f_steer);
+
+            std_msgs::String l_resp; 
+            std::stringstream ss;
+            ss << "@2:ack; f_steer: " << _robotSetter->f_steer << ";;";
+            l_resp.data = ss.str();
             this->_feedbackPublisher.publish(l_resp);
         }
 
