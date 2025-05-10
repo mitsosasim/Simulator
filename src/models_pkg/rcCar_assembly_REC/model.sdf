@@ -391,6 +391,15 @@
     <plugin name='bno055' filename='libbno055_plugin.so'> </plugin>
     <plugin name='gps' filename='libgps_plugin.so'> </plugin>
 
+  <plugin name="wheel_encoder_plugin" filename="libwheel_encoder_plugin.so">
+    <leftjoint>joint_leftrear_rim</leftjoint>
+    <rightjoint>joint_rightrear_rim</rightjoint>
+    <wheel_radius>0.0325</wheel_radius>
+    <wheel_base>0.26</wheel_base>
+    <publish_rate>100</publish_rate>
+    <robotNamespace>/</robotNamespace>
+    <topic_name>/automobile/wheel_encoder/odometry</topic_name>
+  </plugin>
 
   </model>
 </sdf>
