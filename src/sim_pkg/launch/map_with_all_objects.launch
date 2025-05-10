@@ -19,7 +19,9 @@
   <node pkg="sim_pkg" type="delay.sh" args="15 sim_pkg priority_signs.launch"      name="priority_signs"       output="screen"/>
   <node pkg="sim_pkg" type="delay.sh" args="15 sim_pkg roundabout_signs.launch"    name="roundabout_signs"     output="screen"/>
   <param name="use_sim_time" value="true"/>
-
+  <node pkg="map_server" type="map_server" name="track_map_server"
+        args="$(find models_pkg)/track/materials/textures/track_map.yaml"
+        output="screen"/>
   <!--<node pkg="sim_pkg" type="delay.sh" args="15 sim_pkg stop_signs.launch"          name="stop_signs"           output="screen"/>
   <node pkg="sim_pkg" type="delay.sh" args="15 sim_pkg pedestrian_objects.launch"  name="pedestrian_objects"   output="screen"/>
   <node pkg="sim_pkg" type="delay.sh" args="15 sim_pkg obstacle_car.launch"        name="obstacle_car"         output="screen"/>
