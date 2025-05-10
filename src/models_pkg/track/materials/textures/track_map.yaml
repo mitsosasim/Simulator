@@ -1,0 +1,6 @@
+image: 2021_VerySmall.png
+resolution: 0.004233    # meters/pixel
+origin: [ 0.0, -14.99, 0.0 ]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196
