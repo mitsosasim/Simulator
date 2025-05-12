@@ -4,8 +4,8 @@
 #include <gazebo/physics/physics.hh>
 #include <gazebo/common/common.hh>
 #include <ros/ros.h>
-#include <nav\_msgs/Odometry.h>
-#include <geometry\_msgs/Twist.h>
+#include <nav_msgs/Odometry.h>
+#include <geometry_msgs/Twist.h>
 
 namespace gazebo
 {
@@ -15,20 +15,19 @@ class GazeboRosWheelEncoder : public ModelPlugin
 {
 public:
 GazeboRosWheelEncoder() = default;
-virtual \~GazeboRosWheelEncoder();
+virtual ~GazeboRosWheelEncoder();
 
-```
+
 /// \brief Load the plugin, read parameters from SDF, and initialize ROS publisher.
 /// \param[in] _model Pointer to the parent model.
 /// \param[in] _sdf   SDF element containing plugin parameters.
 void Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) override;
-```
+
 
 private:
 /// \brief Called every simulation iteration to compute and publish encoder data.
 void OnUpdate();
 
-```
 /// Pointer to the model
 physics::ModelPtr model_;
 /// Pointer to the update event connection
@@ -68,7 +67,7 @@ double prev_angle_right_ = 0.0;
 
 /// Utility: convert Gazebo time to ROS time
 ros::Time GazeboTimeToRos(const common::Time &t) const;
-```
+
 
 };
 } // namespace gazebo
