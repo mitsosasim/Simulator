@@ -1,0 +1,5 @@
+train: /home/brakingbad/Documents/Simulator/YOLOv5-traffic/images/train
+val: /home/brakingbad/Documents/Simulator/YOLOv5-traffic/images/val
+
+nc: 8
+names: ['crosswalk', 'oneway', 'roundabout','no_entry', 'enter_highway', 'parking', 'priority','exit_highway']
