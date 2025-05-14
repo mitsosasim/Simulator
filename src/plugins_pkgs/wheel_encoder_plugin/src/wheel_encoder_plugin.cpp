@@ -87,6 +87,14 @@ void GazeboRosWheelEncoder::OnUpdate()
   odom.header.frame_id = "map";
   odom.child_frame_id  = "base_link";
 
+  if (fabs(lin_x)  < 1e-3  &&  fabs(ang_z) < 1e-3)
+  {
+    // no movement dead-zone
+    lin_x = 0.0;
+    ang_z = 0.0;
+  }
+ 
+  
   odom.twist.twist.linear.x  = lin_x;
   odom.twist.twist.angular.z = ang_z;
 

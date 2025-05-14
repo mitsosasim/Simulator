@@ -1,0 +1,8 @@
+crosswalk
+oneway
+roundabout
+noentry
+enterhighway
+parking
+priority
+exithighway
