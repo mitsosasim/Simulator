@@ -42,7 +42,7 @@
       <name>wheel_front_right</name>
     </include>
     
-    <!-- including the camera link -->
+    <!-- including the camera lin -->
     <!-- 0.261799388 -->
     <include>
       <uri>model://camera</uri>
@@ -50,14 +50,14 @@
       <name>camera</name>
     </include>
 
-    <!-- including the camera follow link -->
+    <!-- including the camera follow lin -->
     <include>
       <uri>model://camera_follow</uri>
       <pose>-0.3 0 0.45 0 0.6 0</pose>
       <name>camera_follow</name>
     </include>
 
-    <!-- including the camera follow link -->
+    <!-- including the camera follow lin -->
     <include>
       <uri>model://cam_birdeye_REC</uri>
       <pose>0 0 1.5 0 1.570794 0</pose>
