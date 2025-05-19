@@ -1,0 +1,16 @@
+digraph G {
+"chassis::link" -> "car_body::link"[label=" Broadcaster: /tf_chassis_to_car_body\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"chassis::link" -> "camera_follow::link_camera"[label=" Broadcaster: /tf_chassis_to_camera_follow\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"chassis::link" -> "camera::link_camera"[label=" Broadcaster: /tf_chassis_to_camera\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"chassis::link" -> "wheel_rear_left::link_rim"[label=" Broadcaster: /tf_chassis_to_wheel_rear_left\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"chassis::link" -> "cam_birdeye_REC::link_camera"[label=" Broadcaster: /tf_chassis_to_birdeye\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"chassis::link" -> "wheel_rear_right::link_rim"[label=" Broadcaster: /tf_chassis_to_wheel_rear_right\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"chassis::link" -> "steer_right::link_steer"[label=" Broadcaster: /tf_chassis_to_steer_right\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"chassis::link" -> "steer_left::link_steer"[label=" Broadcaster: /tf_chassis_to_steer_left\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"steer_right::link_steer" -> "wheel_front_right::link_rim"[label=" Broadcaster: /tf_steer_right_to_front_right\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"steer_left::link_steer" -> "wheel_front_left::link_rim"[label=" Broadcaster: /tf_steer_left_to_front_left\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 3325.645"[ shape=plaintext ] ;
+}->"chassis::link";
+}
