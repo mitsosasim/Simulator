@@ -3,28 +3,41 @@
   <name>example</name>
   <version>1.0.0</version>
   <description>The sim_pkg package</description>
-  <maintainer email="rares.lemnariu@ro.bosch.com"> Rares Lemnariu </maintainer>
+  <maintainer email="rares.lemnariu@ro.bosch.com">Rares Lemnariu</maintainer>
   <license>Bosch ECC</license>
 
-  
   <buildtool_depend>catkin</buildtool_depend>
+
+  <!-- Python deps -->
   <build_depend>rospy</build_depend>
   <build_depend>std_msgs</build_depend>
   <build_depend>utils</build_depend>
-  <build_export_depend>rospy</build_export_depend>
-  <build_export_depend>std_msgs</build_export_depend>
-  <build_export_depend>utils</build_export_depend>
   <exec_depend>rospy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>utils</exec_depend>
-
-  <exec_depend>rospy</exec_depend>
   <exec_depend>cv_bridge</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>vision_msgs</exec_depend>
-  <exec_depend>tf</exec_depend>
-  <exec_depend>ultralytics</exec_depend>
-  <exec_depend>utils</exec_depend>
 
+  <!-- C++ deps for EKF node -->
+  <build_depend>roscpp</build_depend>
+  <build_depend>tf2_ros</build_depend>
+  <build_depend>nav_msgs</build_depend>
+  <build_depend>cv_bridge</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>vision_msgs</build_depend>
+  <build_depend>tf2_geometry_msgs</build_depend>
+
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>tf2_geometry_msgs</exec_depend>
+
+  <!-- existing -->
+  <exec_depend>ultralytics</exec_depend>
+
+  <!-- Optionally, if you want to declare Eigen -->
+  <build_depend>eigen3</build_depend>
 </package>

@@ -22,6 +22,44 @@
   <param name="use_sim_time" value="true"/>
   <node pkg="map_server" type="map_server" name="track_map_server" args="$(find models_pkg)/track/materials/textures/track_map.yaml" output="screen"/>
 
+
+  <!-- static tf broadcast -->
+  <arg name="use_sim_time" default="true"/>  
+  <param name="use_sim_time" value="$(arg use_sim_time)"/>
+
+  <!-- camera offset -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_chassis_to_camera"
+        args="0 0 0   0 0 0 1   chassis::link   camera::link_camera"/>
+  
+  <!-- camera_follow -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_chassis_to_camera_follow"
+        args="0 0 0   0 0 0 1   chassis::link   camera_follow::link_camera"/>
+
+  <!-- cam_birdeye_REC -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_chassis_to_birdeye"
+        args="0 0 0   0 0 0 1   chassis::link   cam_birdeye_REC::link_camera"/>
+
+  <!-- car_body -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_chassis_to_car_body"
+        args="0 0 0   0 0 0 1   chassis::link   car_body::link"/>
+
+  <!-- rear wheels -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_chassis_to_wheel_rear_left"
+        args="0 0 0   0 0 0 1   chassis::link   wheel_rear_left::link_rim"/>
+  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_chassis_to_wheel_rear_right"
+        args="0 0 0   0 0 0 1   chassis::link   wheel_rear_right::link_rim"/>
+
+  <!-- steer + front wheels -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_chassis_to_steer_left"
+        args="0 0 0   0 0 0 1   chassis::link   steer_left::link_steer"/>
+  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_steer_left_to_front_left"
+        args="0 0 0   0 0 0 1   steer_left::link_steer   wheel_front_left::link_rim"/>
+
+  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_chassis_to_steer_right"
+        args="0 0 0   0 0 0 1   chassis::link   steer_right::link_steer"/>
+  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_steer_right_to_front_right"
+        args="0 0 0   0 0 0 1   steer_right::link_steer   wheel_front_right::link_rim"/>
+
   <!--<node pkg="sim_pkg" type="delay.sh" args="15 sim_pkg stop_signs.launch"          name="stop_signs"           output="screen"/>
   <node pkg="sim_pkg" type="delay.sh" args="15 sim_pkg pedestrian_objects.launch"  name="pedestrian_objects"   output="screen"/>
   <node pkg="sim_pkg" type="delay.sh" args="15 sim_pkg obstacle_car.launch"        name="obstacle_car"         output="screen"/>

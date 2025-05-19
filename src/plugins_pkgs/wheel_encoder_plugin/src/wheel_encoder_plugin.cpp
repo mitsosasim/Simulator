@@ -85,7 +85,7 @@ void GazeboRosWheelEncoder::OnUpdate()
   nav_msgs::Odometry odom;
   odom.header.stamp    = ros::Time::now();
   odom.header.frame_id = "map";
-  odom.child_frame_id  = "base_link";
+  odom.child_frame_id  = "chassis::link";
 
   if (fabs(lin_x)  < 1e-3  &&  fabs(ang_z) < 1e-3)
   {
