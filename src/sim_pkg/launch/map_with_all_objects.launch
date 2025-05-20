@@ -60,6 +60,11 @@
   <node pkg="tf2_ros" type="static_transform_publisher" name="tf_steer_right_to_front_right"
         args="0 0 0   0 0 0 1   steer_right::link_steer   wheel_front_right::link_rim"/>
 
+
+  <!-- start ground_truth, rviz -->
+  <node pkg="example" type="ground_truth.py" name="ground_truth" output="screen"> </node> 
+  <node pkg="rviz" type="rviz" name="rviz" args="-d /home/brakingbad/Documents/Simulator/src/utils/rviz.rviz" />
+
   <!--<node pkg="sim_pkg" type="delay.sh" args="15 sim_pkg stop_signs.launch"          name="stop_signs"           output="screen"/>
   <node pkg="sim_pkg" type="delay.sh" args="15 sim_pkg pedestrian_objects.launch"  name="pedestrian_objects"   output="screen"/>
   <node pkg="sim_pkg" type="delay.sh" args="15 sim_pkg obstacle_car.launch"        name="obstacle_car"         output="screen"/>

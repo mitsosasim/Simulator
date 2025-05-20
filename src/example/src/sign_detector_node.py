@@ -1,58 +1,91 @@
 #!/usr/bin/env python3
-import rospy, cv2, numpy as np
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image, CameraInfo
-from geometry_msgs.msg import Pose, PoseArray, TransformStamped
-from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
-from ultralytics import YOLO
+"""
+YoloSignPoseNode
+
+A ROS node that uses YOLO to detect traffic signs in a camera image,
+estimates their 3D pose in the camera frame, and publishes both a
+PoseArray and individual TF frames for each sign.
+
+Enhancements:
+- Handles multiple sign shapes (rectangles, circles, triangles, diamonds)
+  by mapping each YOLO class to its real-world dimensions and shape.
+- Uses RANSAC-backed solvePnP for robust rectangle pose estimation.
+- Preprocesses contours with Gaussian blur and Canny edge detection.
+- Falls back to a combined pinhole estimate using both real height and width
+  when PnP fails, ensuring correct aspect ratio for highway signs.
+"""
+
+import rospy
+import cv2
+import numpy as np
 import tf2_ros
 import torch
 
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image, CameraInfo
+from geometry_msgs.msg import Pose, PoseArray, TransformStamped
+from ultralytics import YOLO
+import tf.transformations as tfm
+
+
 class YoloSignPoseNode:
     def __init__(self):
+        # Initialize ROS node
         rospy.init_node('yolo_sign_pose_node')
-        # params
+
+        # Load parameters
         model_path = rospy.get_param('~model', 'best.pt')
         conf       = rospy.get_param('~conf',   0.5)
-        device     = rospy.get_param('~device','cpu')
-        self.sign_real_height = 6.0  # cm
-        self.sign_real_width  = 6.0  # cm
+        device     = rospy.get_param('~device','cuda')
+
+        # Default cm values in case a class is missing
+        self.sign_default_height = 6.0
+        self.sign_default_width  = 6.0
+
+        # Mapping from class prefix to (width_cm, height_cm, shape)
+        self.sign_specs = {
+            'crosswalk':   (6.0, 6.0, 'rectangle'),
+            'parking':     (6.0, 6.0, 'rectangle'),
+            'oneway':      (6.0, 6.0, 'rectangle'),
+            'enterhighway':(4.2, 6.0, 'rectangle'),
+            'exithighway': (4.2, 6.0, 'rectangle'),
+            'noentry':     (6.0, 6.0, 'circle'),
+            'roundabout':  (6.0, 6.0, 'triangle'),
+            'priority':    (6.0, 6.0, 'diamond'),
+        }
+
 
         rospy.loginfo(f"[YOLO] CUDA available? {torch.cuda.is_available()}")
 
-        # load YOLO
+        # Load the YOLO model
         self.model = YOLO(model_path)
         self.model.conf = conf
         if 'cuda' in device:
             self.model.to(device)
-        params = list(self.model.model.parameters())
-        rospy.loginfo(f"[YOLO] Model parameters on device: {params[0].device}")
 
-        # cv_bridge + tf broadcaster
+        # CV Bridge and TF broadcaster
         self.bridge = CvBridge()
         self.tf_br  = tf2_ros.TransformBroadcaster()
 
-        # camera intrinsics
+        # Camera intrinsics placeholders
         self.cam_K = None
         self.dist  = None
-        rospy.Subscriber('/automobile/camera_info', CameraInfo,
-                         self.info_cb, queue_size=1)
+        rospy.Subscriber('/automobile/camera_info',
+                         CameraInfo, self.info_cb, queue_size=1)
 
-        # main subscription & pubs
-        self.sub_img = rospy.Subscriber('/automobile/image_raw', Image,
-                                        self.image_cb,
-                                        queue_size=1,
-                                        buff_size=4*1024*1024)
+        # Image subscriber and publishers
+        self.sub_img   = rospy.Subscriber('/automobile/image_raw',
+                                          Image, self.image_cb,
+                                          queue_size=1, buff_size=4*1024*1024)
         self.pub_img   = rospy.Publisher('/automobile/image_annotated',
                                          Image, queue_size=1)
         self.pub_poses = rospy.Publisher('/sign_detector/sign_poses',
                                          PoseArray, queue_size=1)
 
-        # OpenCV windows
+        # OpenCV window for visualization
         cv2.namedWindow('Detections', cv2.WINDOW_NORMAL)
         self.last_annotated = None
 
-        # cleanup on shutdown
         rospy.on_shutdown(self.on_shutdown)
 
     def on_shutdown(self):
@@ -60,105 +93,194 @@ class YoloSignPoseNode:
         rospy.loginfo("[YOLO] Closed OpenCV windows")
 
     def info_cb(self, msg: CameraInfo):
+        """
+        CameraInfo callback to read intrinsic matrix K and distortion D.
+        """
         if self.cam_K is None:
             self.cam_K = np.array(msg.K).reshape(3,3)
             self.dist  = np.array(msg.D)
-            rospy.loginfo(f"[PoseNode] Cam intrinsics fx={self.cam_K[0,0]:.1f}, "
+            rospy.loginfo(f"[PoseNode] fx={self.cam_K[0,0]:.1f}, "
                           f"fy={self.cam_K[1,1]:.1f}, cx={self.cam_K[0,2]:.1f}, "
                           f"cy={self.cam_K[1,2]:.1f}")
 
     @staticmethod
     def order_pts(pts):
+        """
+        Orders 4 corner points: top-left, top-right, bottom-right, bottom-left.
+        """
         xSorted = pts[np.argsort(pts[:,0]),:]
         left, right = xSorted[:2], xSorted[2:]
         tl, bl = left[np.argsort(left[:,1])]
         tr, br = right[np.argsort(right[:,1])]
-        return np.array([tl,tr,br,bl],dtype=np.float32)
+        return np.array([tl, tr, br, bl], dtype=np.float32)
 
-    def solve_pnp(self, frame, x1,y1,w,h, real_w, real_h):
-        roi = frame[y1:y1+h, x1:x1+w]
-        gray = cv2.cvtColor(roi,cv2.COLOR_BGR2GRAY)
-        _,th = cv2.threshold(gray,100,255,cv2.THRESH_BINARY)
-        cnts,_ = cv2.findContours(th,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
-        if not cnts: return None,None
-        c = max(cnts, key=cv2.contourArea)
-        eps = 0.02*cv2.arcLength(c,True)
-        approx = cv2.approxPolyDP(c,eps,True)
-        if len(approx)!=4: return None,None
-        pts = approx.reshape(4,2).astype(np.float32) + np.array([x1,y1])
-        img_pts = self.order_pts(pts)
-        obj_pts = np.array([[0,0,0],
-                            [real_w,0,0],
-                            [real_w,real_h,0],
-                            [0,real_h,0]],dtype=np.float32)
-        ok, rvec, tvec = cv2.solvePnP(obj_pts, img_pts, self.cam_K, self.dist)
-        return (rvec,tvec) if ok else (None,None)
-
-    def fallback_dist(self, cx,cy,pix_h):
-        Z = (self.cam_K[1,1]*self.sign_real_height)/pix_h  # cm
+    def fallback_dist(self, cx, cy, pix_h, pix_w, real_w, real_h):
+        """
+        Combined pinhole fallback:
+        - Compute Z from both real height/pixel height and real width/pixel width.
+        - Average the two estimates for robust scaling when aspect ratio != 1.
+        """
+        # Z estimate from height
+        Z_h = (self.cam_K[1,1] * real_h) / pix_h
+        # Z estimate from width
+        Z_w = (self.cam_K[0,0] * real_w) / pix_w
+        # Combined depth (cm)
+        Z = 0.5 * (Z_h + Z_w)
+        # Reproject to X, Y
         X = (cx - self.cam_K[0,2]) * Z / self.cam_K[0,0]
         Y = (cy - self.cam_K[1,2]) * Z / self.cam_K[1,1]
-        return np.array([X,Y,Z],dtype=np.float32)
+        return np.array([X, Y, Z], dtype=np.float32)
 
     def image_cb(self, msg: Image):
+        """
+        Image callback: runs YOLO, extracts contours, fits PnP or fallback,
+        and publishes PoseArray + TFs.
+        """
         if self.cam_K is None:
-            return
+            return  # wait for intrinsics
 
-        # decode & undistort
-        frame       = self.bridge.imgmsg_to_cv2(msg,'bgr8')
-        frame_u     = cv2.undistort(frame, self.cam_K, self.dist, None, self.cam_K)
+        # Convert and undistort
+        frame   = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+        frame_u = cv2.undistort(frame, self.cam_K, self.dist, None, self.cam_K)
 
         # YOLO inference
-        res         = self.model(frame_u)[0]
-        annotated   = res.plot()
+        res       = self.model(frame_u)[0]
+        annotated = res.plot()
 
-        # poses container
         poses = PoseArray(header=msg.header)
 
-        # annotate each detection
-        for i,(box,conf,cls) in enumerate(zip(res.boxes.xyxy,
-                                              res.boxes.conf,
-                                              res.boxes.cls)):
-            x1,y1,x2,y2 = map(int,box)
-            w,h = x2-x1, y2-y1
-            cx,cy = x1+w/2, y1+h/2
+        # Process each detection
+        for i, (box, conf, cls) in enumerate(zip(res.boxes.xyxy,
+                                                 res.boxes.conf,
+                                                 res.boxes.cls)):
+            x1, y1, x2, y2 = map(int, box)
+            w, h = x2 - x1, y2 - y1
+            cx, cy = x1 + w/2, y1 + h/2
 
-            # PnP
-            real_w = real_h = self.sign_real_height
-            rvec,tvec = self.solve_pnp(frame_u, x1,y1,w,h,real_w,real_h)
+            # Look up sign specs
+            cls_name = self.model.names[int(cls)]
+            key = cls_name.split('_')[0]
+            real_w, real_h, shape = self.sign_specs.get(
+                key,
+                (self.sign_default_width,
+                 self.sign_default_height,
+                 'rectangle')
+            )
+
+            # Preprocess ROI for contour detection
+            roi_gray = cv2.cvtColor(frame_u[y1:y1+h, x1:x1+w],
+                                    cv2.COLOR_BGR2GRAY)
+            blur  = cv2.GaussianBlur(roi_gray, (5,5), 0)
+            edges = cv2.Canny(blur, 50, 150)
+
+            cnts, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL,
+                                       cv2.CHAIN_APPROX_SIMPLE)
+            if not cnts:
+                continue
+            c = max(cnts, key=cv2.contourArea)
+            if cv2.contourArea(c) < 0.1*w*h:
+                continue
+
+            # Initialize pose variables
+            rvec = None
+            tvec = None
+            used_pnp = False
+
+            # Approximate polygon
+            approx = cv2.approxPolyDP(c, 0.02*cv2.arcLength(c, True), True)
+            pts = (approx.reshape(-1,2).astype(np.float32)
+                   + np.array([x1, y1]))
+
+            # Shape-specific estimation
+            if shape == 'rectangle' and len(pts) == 4:
+                img_pts = self.order_pts(pts)
+                obj_pts = np.array([[0, 0, 0],
+                                    [real_w, 0, 0],
+                                    [real_w, real_h, 0],
+                                    [0, real_h, 0]],
+                                   dtype=np.float32)
+                ok, rvec, tvec, _ = cv2.solvePnPRansac(
+                    obj_pts, img_pts, self.cam_K, self.dist,
+                    reprojectionError=8.0, iterationsCount=100,
+                    confidence=0.99, flags=cv2.SOLVEPNP_ITERATIVE)
+                if ok:
+                    used_pnp = True
+                else:
+                    rvec, tvec = None, None
+
+            elif shape == 'triangle' and len(pts) == 3:
+                img_pts = pts
+                obj_pts = np.array([[0, 0, 0],
+                                    [real_w, 0, 0],
+                                    [real_w/2, real_h, 0]],
+                                   dtype=np.float32)
+                ok, rvec, tvec = cv2.solvePnP(obj_pts, img_pts,
+                                              self.cam_K, self.dist)
+                if ok:
+                    used_pnp = True
+                else:
+                    rvec, tvec = None, None
+
+            elif shape == 'diamond' and len(pts) == 4:
+                img_pts = self.order_pts(pts)
+                w2, h2 = real_w/2, real_h/2
+                obj_pts = np.array([[ 0, -h2, 0],
+                                    [ w2,  0, 0],
+                                    [ 0,  h2, 0],
+                                    [-w2,  0, 0]],
+                                   dtype=np.float32)
+                ok, rvec, tvec = cv2.solvePnP(obj_pts, img_pts,
+                                              self.cam_K, self.dist)
+                if not ok:
+                    rvec, tvec = None, None
+
+            elif shape == 'circle':
+                (cx_img, cy_img), radius = cv2.minEnclosingCircle(c)
+                Z = (self.cam_K[1,1]*real_h) / (2*radius)
+                X = (cx_img - self.cam_K[0,2]) * Z / self.cam_K[0,0]
+                Y = (cy_img - self.cam_K[1,2]) * Z / self.cam_K[1,1]
+                tvec = np.array([[X], [Y], [Z]], dtype=np.float32)
+                used_pnp = False # Fallback to pinhole estimate
+
+            # If PnP failed, use combined pinhole fallback
             if tvec is None:
-                t = self.fallback_dist(cx,cy,h)
-                rvec, tvec = None, t.reshape(3,1)
+                fallback = self.fallback_dist(cx, cy, h, w, real_w, real_h)
+                tvec = fallback.reshape(3,1)
+                used_pnp = False
 
-            # draw box
-            cv2.rectangle(annotated,(x1,y1),(x2,y2),(0,255,0),2)
+            # Draw bounding box
+            cv2.rectangle(annotated, (x1, y1), (x2, y2),
+                          (0, 255, 0)if not used_pnp else (255, 0, 0), 2)
 
-            # compute meters
-            x_m = tvec[0,0]/100.0
-            y_m = tvec[1,0]/100.0
-            z_m = tvec[2,0]/100.0
+            # Convert to meters
+            x_m, y_m, z_m = (tvec.flatten() / 100.0)
 
-            # annotate X,Y,Z 5px apart above box
-            cv2.putText(annotated, f"X={x_m:.2f} m", (x1, y1-25),  cv2.FONT_HERSHEY_SIMPLEX,0.5,(0,255,0),2)
-            cv2.putText(annotated, f"Y={y_m:.2f} m", (x1, y1-50),  cv2.FONT_HERSHEY_SIMPLEX,0.5,(0,255,0),2)
-            cv2.putText(annotated, f"Z={z_m:.2f} m", (x1, y1-75),  cv2.FONT_HERSHEY_SIMPLEX,0.5,(0,255,0),2)
+            # Annotate 3D coordinates
+            text_color = (0, 255, 0) if not used_pnp else (255, 0, 0)  # Green for fallback, Blue for PnP
+            cv2.putText(annotated, f"X={x_m:.2f}m", (x1, y1-25),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
+            cv2.putText(annotated, f"Y={y_m:.2f}m", (x1, y1-50),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
+            cv2.putText(annotated, f"Z={z_m:.2f}m", (x1, y1-75),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
 
-            # build Pose
+            # Build ROS Pose
             p = Pose()
             p.position.x = x_m
             p.position.y = y_m
             p.position.z = z_m
+
             if rvec is not None:
-                R,_ = cv2.Rodrigues(rvec)
-                M    = np.eye(4); M[:3,:3]=R
-                import tf.transformations as tfm
-                q    = tfm.quaternion_from_matrix(M)
-                p.orientation.x,p.orientation.y,p.orientation.z,p.orientation.w = q
+                R, _ = cv2.Rodrigues(rvec)
+                M = np.eye(4); M[:3,:3] = R
+                q = tfm.quaternion_from_matrix(M)
+                p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w = q
             else:
                 p.orientation.w = 1.0
+
             poses.poses.append(p)
 
-            # broadcast TF
+            # Broadcast a TF frame
             tf = TransformStamped()
             tf.header         = msg.header
             tf.child_frame_id = f"sign_{i}"
@@ -168,24 +290,21 @@ class YoloSignPoseNode:
             tf.transform.rotation       = p.orientation
             self.tf_br.sendTransform(tf)
 
-        # show annotated image live
+        # Store for visualization
         self.last_annotated = annotated.copy()
-        # cv2.imshow('Detections', annotated)
-        # cv2.waitKey(1)
 
-        # publish annotated image & poses
-        out_img = self.bridge.cv2_to_imgmsg(annotated,'bgr8')
+        # Publish annotated image and poses
+        out_img = self.bridge.cv2_to_imgmsg(annotated, 'bgr8')
         out_img.header = msg.header
         self.pub_img.publish(out_img)
         self.pub_poses.publish(poses)
 
+
 if __name__ == '__main__':
     node = YoloSignPoseNode()
-
-    rate = rospy.Rate(30)  # match your camera frame rate
+    rate = rospy.Rate(30)
     while not rospy.is_shutdown():
         if node.last_annotated is not None:
             cv2.imshow('Detections', node.last_annotated)
-            # must call waitKey from main thread to update the window
             cv2.waitKey(1)
         rate.sleep()

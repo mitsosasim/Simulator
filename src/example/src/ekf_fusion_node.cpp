@@ -37,6 +37,9 @@ public:
     sub_odom_   = nh_.subscribe("/automobile/wheel_encoder/odometry",  1, &EKFFusion::odomCallback,   this);
     sub_imu_    = nh_.subscribe("/automobile/IMU",                     1, &EKFFusion::imuCallback,    this);
     sub_vision_ = nh_.subscribe("/sign_detector/sign_poses",           1, &EKFFusion::visionCallback, this);
+    // Subscribe to the ground-truth path so we can grab its first pose
+    sub_gt_path_ = nh_.subscribe("/ground_truth_path", 1, &EKFFusion::groundTruthCallback, this);
+
 
     // Publishers
     pub_odom_fused_ = nh_.advertise<nav_msgs::Odometry>("/ekf/odom", 1);
@@ -53,11 +56,13 @@ public:
 private:
   // ROS
   ros::NodeHandle nh_;
-  ros::Subscriber sub_odom_, sub_imu_, sub_vision_;
+  ros::Subscriber sub_odom_, sub_imu_, sub_vision_, sub_gt_path_;
   ros::Publisher  pub_odom_fused_, pub_path_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   tf2_ros::Buffer tf_buffer_;
   tf2_ros::TransformListener tf_listener_{tf_buffer_};
+
+  bool initialized_ = false;
 
   // EKF state
   Eigen::Vector3d state_;      // [x, y, theta]
@@ -76,6 +81,7 @@ private:
 
   // Callbacks
   void odomCallback(const nav_msgs::Odometry::ConstPtr& odom_msg) {
+    if (!initialized_) return; // wait for ground truth
     double v = odom_msg->twist.twist.linear.x;
     double w = odom_msg->twist.twist.angular.z;
     ros::Time t = odom_msg->header.stamp;
@@ -99,6 +105,7 @@ private:
    */
   void imuCallback(const utils::IMU::ConstPtr& imu_msg)
   {
+    if (!initialized_) return;
     // 1) Read yaw (heading) from the IMU message
     double meas_yaw = imu_msg->yaw;
 
@@ -115,6 +122,7 @@ private:
   }
 
   void visionCallback(const geometry_msgs::PoseArray::ConstPtr& p_arr) {
+    if (!initialized_) return; // wait for ground truth
     // Transform each Pose to chassis frame (tf listener needed)
     std::vector<Eigen::Vector2d> meas;
     geometry_msgs::PoseStamped in_ps, out_ps;
@@ -132,6 +140,48 @@ private:
     }
     updateVision(meas, p_arr->header.stamp);
   }
+
+
+
+
+  /**
+   * @brief Grabs the very first pose from /ground_truth_path to seed the EKF.
+   */
+  void groundTruthCallback(const nav_msgs::Path::ConstPtr& path_msg)
+  {
+    if (initialized_ || path_msg->poses.empty()) return;
+
+    // Use the first PoseStamped
+    auto& ps = path_msg->poses.front();
+    state_(0) = ps.pose.position.x;
+    state_(1) = ps.pose.position.y;
+
+    // Extract yaw from the orientation
+    tf2::Quaternion q(
+      ps.pose.orientation.x,
+      ps.pose.orientation.y,
+      ps.pose.orientation.z,
+      ps.pose.orientation.w
+    );
+    double roll, pitch, yaw;
+    tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+    state_(2) = yaw;
+
+    // Initialize last_odom_time_ to align prediction timing
+    last_odom_time_ = ps.header.stamp;
+
+    initialized_ = true;
+    ROS_INFO("EKF initialized to ground truth: x=%.3f, y=%.3f, yaw=%.3f",
+            state_(0), state_(1), state_(2));
+
+    // We don’t need any more ground-truth messages
+    sub_gt_path_.shutdown();
+  }
+
+
+
+
+
 
   // EKF steps
   void predict(double v, double w, double dt) {
