@@ -35,7 +35,7 @@ class PathVisualizer:
         stamp = rospy.Time.now()
         try:
             idx = msg.name.index(self.model_name)
-            print(f"Found {self.model_name} at index {idx}")
+            #print(f"Found {self.model_name} at index {idx}")
         except ValueError:
             return
 
