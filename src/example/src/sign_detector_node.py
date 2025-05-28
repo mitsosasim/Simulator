@@ -15,6 +15,24 @@ Enhancements:
   when PnP fails, ensuring correct aspect ratio for highway signs.
 """
 
+#!/usr/bin/env python3
+import os, sys
+
+# 1) Prepend the YOLOv5 repo root so its "utils" is found first:
+yolo_repo = '/home/brakingbad/Documents/Simulator/YOLOv5-traffic/yolov5'
+if os.path.isdir(yolo_repo) and yolo_repo not in sys.path:
+    sys.path.insert(0, yolo_repo)
+
+# 2) Optionally, remove your ROS utils if already on sys.path:
+#    (uncomment if needed)
+# 
+# ros_utils = os.path.join(os.getenv('HOME'),
+#                          'Documents/Simulator/src/utils')
+# if ros_utils in sys.path:
+#     sys.path.remove(ros_utils)
+# # 
+
+
 import rospy
 import cv2
 import numpy as np
@@ -29,6 +47,7 @@ from std_msgs.msg import MultiArrayDimension
 from utils.msg import SignLabelArray  
 
 
+
 import tf.transformations as tfm
 
 
@@ -38,7 +57,8 @@ class YoloSignPoseNode:
         rospy.init_node('yolo_sign_pose_node')
 
         # Load parameters
-        model_path = rospy.get_param('~model', 'best.pt')
+        model_path = rospy.get_param('~model',  '/home/brakingbad/Documents/Simulator/YOLOv5-traffic/yolov5/runs/train/traffic_signs/weights/best.pt')
+        repo_dir = '/home/brakingbad/Documents/Simulator/YOLOv5-traffic/yolov5'
         conf       = rospy.get_param('~conf',   0.6)
         device     = rospy.get_param('~device','cuda')
 
@@ -61,20 +81,20 @@ class YoloSignPoseNode:
 
         rospy.loginfo(f"[YOLO] CUDA available? {torch.cuda.is_available()}")
 
-        # Load the YOLO model
-        # self.model = torch.hub.load(
-        #     '/home/brakingbad/Documents/Simulator/YOLOv5-traffic/yolov5/runs/train/traffic_signs/weights',  # repo dir
-        #     'custom',          # custom model
-        #     path=model_path,   # your .pt
-        #     source='local'     # local repo
-        # )
-
+        #Load the YOLO model
         self.model = torch.hub.load(
-            'ultralytics/yolov5',  # repo dir
+            yolo_repo,  # repo dir
             'custom',          # custom model
             path=model_path,   # your .pt
-            force_reload=True     
+            source='local'     # local repo
         )
+
+        # self.model = torch.hub.load(
+        #     'ultralytics/yolov5',  # repo dir
+        #     'custom',          # custom model
+        #     path=model_path,   # your .pt
+        #     force_reload=True     
+        # )
 
         self.model.conf = conf
         if 'cuda' in device and torch.cuda.is_available():

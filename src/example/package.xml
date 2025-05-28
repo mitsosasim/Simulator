@@ -41,8 +41,7 @@
   <!-- Optionally, if you want to declare Eigen -->
   <build_depend>eigen3</build_depend>
 
-  <build_depend>utils</build_depend>
-  <exec_depend>utils</exec_depend>
+  
   <depend>message_runtime</depend>   <!-- if not already there -->
 
 </package>
