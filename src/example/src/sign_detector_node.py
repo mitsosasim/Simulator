@@ -25,7 +25,9 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import Pose, PoseArray, TransformStamped
 from ultralytics import YOLO
-from std_msgs.msg import StringMultiArray, MultiArrayDimension
+from std_msgs.msg import MultiArrayDimension
+from utils.msg import SignLabelArray  
+
 
 import tf.transformations as tfm
 
@@ -36,7 +38,7 @@ class YoloSignPoseNode:
         rospy.init_node('yolo_sign_pose_node')
 
         # Load parameters
-        model_path = rospy.get_param('~model', 'best_yolo5nano.pt')
+        model_path = rospy.get_param('~model', 'best.pt')
         conf       = rospy.get_param('~conf',   0.6)
         device     = rospy.get_param('~device','cuda')
 
@@ -60,15 +62,22 @@ class YoloSignPoseNode:
         rospy.loginfo(f"[YOLO] CUDA available? {torch.cuda.is_available()}")
 
         # Load the YOLO model
+        # self.model = torch.hub.load(
+        #     '/home/brakingbad/Documents/Simulator/YOLOv5-traffic/yolov5/runs/train/traffic_signs/weights',  # repo dir
+        #     'custom',          # custom model
+        #     path=model_path,   # your .pt
+        #     source='local'     # local repo
+        # )
+
         self.model = torch.hub.load(
-            '/home/brakingbad/Documents/Simulator/YOLOv5-traffic/yolov5',  # repo dir
+            'ultralytics/yolov5',  # repo dir
             'custom',          # custom model
             path=model_path,   # your .pt
-            source='local'     # local repo
+            force_reload=True     
         )
 
         self.model.conf = conf
-        if 'cuda' in device:
+        if 'cuda' in device and torch.cuda.is_available():
             self.model.to(device)
 
         # CV Bridge and TF broadcaster
@@ -90,7 +99,7 @@ class YoloSignPoseNode:
         self.pub_poses = rospy.Publisher('/sign_detector/sign_poses',
                                          PoseArray, queue_size=1)
         self.pub_labels = rospy.Publisher('/sign_detector/sign_labels',
-                                          StringMultiArray, queue_size=1)
+                                          SignLabelArray, queue_size=1)
         
 
         # OpenCV window for visualization
@@ -353,19 +362,13 @@ class YoloSignPoseNode:
         self.pub_img.publish(out_img)
         self.pub_poses.publish(poses)
 
-        labels_msg = StringMultiArray()
-        dim = MultiArrayDimension(label="detections",
-                                  size=len(poses.poses),
-                                  stride=len(poses.poses))
-        labels_msg.layout.dim.append(dim)
-        labels_msg.layout.data_offset = 0
-
-        # Reconstruct the same loop order to fill labels
+        labels_msg = SignLabelArray()
+        labels_msg.labels = []  # ensure fresh list
         for row in det:
             cls = int(row[5])
-            cls_name = self.model.names[cls].split('_')[0]
-            labels_msg.data.append(cls_name)
-
+            # use same generic key as EKF expects
+            key = self.model.names[cls].split('_')[0]
+            labels_msg.labels.append(key)
         self.pub_labels.publish(labels_msg)
 
 

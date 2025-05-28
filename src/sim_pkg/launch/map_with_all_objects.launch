@@ -63,6 +63,7 @@
 
   <!-- start ground_truth, rviz -->
   <node pkg="example" type="ground_truth.py" name="ground_truth" output="screen"> </node> 
+  <!-- <node pkg="example" type="sign_detector.py" name="sign_detector" output="screen"> </node>" -->
   <node pkg="rviz" type="rviz" name="rviz" args="-d /home/brakingbad/Documents/Simulator/src/utils/rviz.rviz" />
 
   <!--<node pkg="sim_pkg" type="delay.sh" args="15 sim_pkg stop_signs.launch"          name="stop_signs"           output="screen"/>
