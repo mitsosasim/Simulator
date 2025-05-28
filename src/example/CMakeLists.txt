@@ -26,6 +26,7 @@ catkin_package(
 include_directories(
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}      # for Eigen3
+  ${utils_INCLUDE_DIRS}   # ← usually same as catkin_INCLUDE_DIRS
 )
 
 ## Install your existing Python node
@@ -42,6 +43,7 @@ add_executable(ekf_fusion_node src/ekf_fusion_node.cpp)
 
 target_link_libraries(ekf_fusion_node
   ${catkin_LIBRARIES}
+  ${utils_LIBRARIES}   
 )
 
 ## If you want to install the binary

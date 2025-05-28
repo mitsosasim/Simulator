@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
    FILES
    IMU.msg
    localisation.msg
+   SignLabelArray.msg
  )
 
  generate_messages(
@@ -19,7 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
 
 
 catkin_package(
-  CATKIN_DEPENDS message_runtime
+  CATKIN_DEPENDS message_runtime std_msgs
 )
 
 include_directories(

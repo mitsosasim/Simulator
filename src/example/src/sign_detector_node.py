@@ -25,6 +25,8 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import Pose, PoseArray, TransformStamped
 from ultralytics import YOLO
+from std_msgs.msg import StringMultiArray, MultiArrayDimension
+
 import tf.transformations as tfm
 
 
@@ -34,8 +36,8 @@ class YoloSignPoseNode:
         rospy.init_node('yolo_sign_pose_node')
 
         # Load parameters
-        model_path = rospy.get_param('~model', 'best.pt')
-        conf       = rospy.get_param('~conf',   0.5)
+        model_path = rospy.get_param('~model', 'best_yolo5nano.pt')
+        conf       = rospy.get_param('~conf',   0.6)
         device     = rospy.get_param('~device','cuda')
 
         # Default cm values in case a class is missing
@@ -58,7 +60,13 @@ class YoloSignPoseNode:
         rospy.loginfo(f"[YOLO] CUDA available? {torch.cuda.is_available()}")
 
         # Load the YOLO model
-        self.model = YOLO(model_path)
+        self.model = torch.hub.load(
+            '/home/brakingbad/Documents/Simulator/YOLOv5-traffic/yolov5',  # repo dir
+            'custom',          # custom model
+            path=model_path,   # your .pt
+            source='local'     # local repo
+        )
+
         self.model.conf = conf
         if 'cuda' in device:
             self.model.to(device)
@@ -81,6 +89,9 @@ class YoloSignPoseNode:
                                          Image, queue_size=1)
         self.pub_poses = rospy.Publisher('/sign_detector/sign_poses',
                                          PoseArray, queue_size=1)
+        self.pub_labels = rospy.Publisher('/sign_detector/sign_labels',
+                                          StringMultiArray, queue_size=1)
+        
 
         # OpenCV window for visualization
         cv2.namedWindow('Detections', cv2.WINDOW_NORMAL)
@@ -144,16 +155,23 @@ class YoloSignPoseNode:
         frame_u = cv2.undistort(frame, self.cam_K, self.dist, None, self.cam_K)
 
         # YOLO inference
-        res       = self.model(frame_u)[0]
-        annotated = res.plot()
+        #results = self.model(frame_u)
+        
+
+        #results.render()                    # draw boxes on results.imgs
+        #annotated = results.imgs[0].copy()  # get the annotated frame
+        results = self.model(frame_u)
+        annotated = frame_u.copy()
+        
 
         poses = PoseArray(header=msg.header)
-
-        # Process each detection
-        for i, (box, conf, cls) in enumerate(zip(res.boxes.xyxy,
-                                                 res.boxes.conf,
-                                                 res.boxes.cls)):
-            x1, y1, x2, y2 = map(int, box)
+        det = results.xyxy[0].cpu().numpy()  # shape (N,6): x1,y1,x2,y2,conf,cls
+       # Process each detection
+        for i, row in enumerate(det):
+            # unpack all six at once
+            x1f, y1f, x2f, y2f, conf, cls = row
+            # convert box corners to ints
+            x1, y1, x2, y2 = map(int, (x1f, y1f, x2f, y2f))
             w, h = x2 - x1, y2 - y1
             cx, cy = x1 + w/2, y1 + h/2
 
@@ -249,20 +267,53 @@ class YoloSignPoseNode:
                 used_pnp = False
 
             # Draw bounding box
-            cv2.rectangle(annotated, (x1, y1), (x2, y2),
-                          (0, 255, 0)if not used_pnp else (255, 0, 0), 2)
+            # cv2.rectangle(annotated, (x1, y1), (x2, y2),
+            #               (0, 255, 0)if not used_pnp else (255, 0, 0), 2)
+
+            # Draw bounding box
+            color = (255, 0, 0) if used_pnp else (0, 255, 0)
+            cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
+
+            # Prepare label with class name and confidence
+            label = f"{cls_name} {conf:.2f}"
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 0
+            thickness = 1
+
+            # Measure text size to draw background
+            (text_w, text_h), baseline = cv2.getTextSize(label, font, font_scale, thickness)
+            # Draw filled rectangle for label background
+            cv2.rectangle(
+                annotated,
+                (x1, y1 - text_h - baseline - 4),
+                (x1 + text_w, y1),
+                color,
+                cv2.FILLED
+            )
+            # Draw label text in white
+            cv2.putText(
+                annotated,
+                label,
+                (x1, y1 - baseline - 2),
+                font,
+                font_scale,
+                (255, 255, 255),
+                thickness,
+                lineType=cv2.LINE_AA
+            )
 
             # Convert to meters
             x_m, y_m, z_m = (tvec.flatten() / 100.0)
 
             # Annotate 3D coordinates
-            text_color = (0, 255, 0) if not used_pnp else (255, 0, 0)  # Green for fallback, Blue for PnP
-            cv2.putText(annotated, f"X={x_m:.2f}m", (x1, y1-25),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
-            cv2.putText(annotated, f"Y={y_m:.2f}m", (x1, y1-50),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
-            cv2.putText(annotated, f"Z={z_m:.2f}m", (x1, y1-75),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
+            text_color = (255, 0, 0) if used_pnp else (0, 255, 0)  # match box color
+            cv2.putText(annotated, f"X={x_m:.2f}m", (x1, y1 - text_h - baseline - 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 2)
+            cv2.putText(annotated, f"Y={y_m:.2f}m", (x1, y1 - text_h - baseline - 55),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 2)
+            cv2.putText(annotated, f"Z={z_m:.2f}m", (x1, y1 - text_h - baseline - 80),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 2)
+
 
             # Build ROS Pose
             p = Pose()
@@ -279,6 +330,9 @@ class YoloSignPoseNode:
                 p.orientation.w = 1.0
 
             poses.poses.append(p)
+
+
+
 
             # Broadcast a TF frame
             tf = TransformStamped()
@@ -298,6 +352,21 @@ class YoloSignPoseNode:
         out_img.header = msg.header
         self.pub_img.publish(out_img)
         self.pub_poses.publish(poses)
+
+        labels_msg = StringMultiArray()
+        dim = MultiArrayDimension(label="detections",
+                                  size=len(poses.poses),
+                                  stride=len(poses.poses))
+        labels_msg.layout.dim.append(dim)
+        labels_msg.layout.data_offset = 0
+
+        # Reconstruct the same loop order to fill labels
+        for row in det:
+            cls = int(row[5])
+            cls_name = self.model.names[cls].split('_')[0]
+            labels_msg.data.append(cls_name)
+
+        self.pub_labels.publish(labels_msg)
 
 
 if __name__ == '__main__':

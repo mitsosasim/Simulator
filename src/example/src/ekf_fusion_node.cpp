@@ -2,18 +2,18 @@
 #include <nav_msgs/Odometry.h>
 #include <utils/IMU.h>
 #include <geometry_msgs/PoseArray.h>
-#include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <nav_msgs/Path.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <Eigen/Dense>
-#include <tf2/LinearMath/Matrix3x3.h>
-#include <geometry_msgs/TransformStamped.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
-
+// ---------- NEW INCLUDES ----------
+#include <utils/SignLabelArray.h>        // your custom msg
+#include <std_msgs/String.h>               // not strictly needed here, but kept if you use strings elsewhere
+// ----------------------------------
 
 
 class EKFFusion
@@ -21,245 +21,181 @@ class EKFFusion
 public:
   EKFFusion(ros::NodeHandle& nh)
     : nh_(nh),
+      tf_listener_(tf_buffer_),
       state_(Eigen::Vector3d::Zero()),
       cov_(Eigen::Matrix3d::Identity() * 1e-3),
-      last_odom_time_(ros::Time(0))   // <— add this
+      last_odom_time_(ros::Time(0))
   {
-    // Load landmarks from parameter server or hardcode
-    loadLandmarks();
+    loadLandmarks();  // now loads class‐tagged landmarks
 
-    // Noise covariance (tunable)
-    Q_ = Eigen::Matrix2d::Identity() * 1e-4;      // process noise for [v, ω]
-    R_imu_ = 1e-2;                                // variance for yaw
-    R_vis_ = Eigen::Matrix2d::Identity() * 1e-1;  // variance for [x_cam, y_cam]
+    // noise, subscribers, publishers (unchanged)…
+    Q_ = Eigen::Matrix2d::Identity() * 1e-4;      
+    R_imu_ = 1e-2;                                
+    R_vis_ = Eigen::Matrix2d::Identity() * 1e-1;  
 
-    // Subscribers
-    sub_odom_   = nh_.subscribe("/automobile/wheel_encoder/odometry",  1, &EKFFusion::odomCallback,   this);
-    sub_imu_    = nh_.subscribe("/automobile/IMU",                     1, &EKFFusion::imuCallback,    this);
-    sub_vision_ = nh_.subscribe("/sign_detector/sign_poses",           1, &EKFFusion::visionCallback, this);
-    // Subscribe to the ground-truth path so we can grab its first pose
+    sub_odom_   = nh_.subscribe("/automobile/wheel_encoder/odometry", 1, &EKFFusion::odomCallback, this);
+    sub_imu_    = nh_.subscribe("/automobile/IMU",                    1, &EKFFusion::imuCallback,  this);
+
+    // subscribe to camera‐based poses AND to your new label array:
+    sub_vision_ = nh_.subscribe("/sign_detector/sign_poses",  1, &EKFFusion::visionCallback,    this);
+    sub_labels_ = nh_.subscribe("/sign_detector/sign_labels",1, &EKFFusion::visionLabelCb,    this);
+
     sub_gt_path_ = nh_.subscribe("/ground_truth_path", 1, &EKFFusion::groundTruthCallback, this);
 
-
-    // Publishers
     pub_odom_fused_ = nh_.advertise<nav_msgs::Odometry>("/ekf/odom", 1);
     pub_path_       = nh_.advertise<nav_msgs::Path>    ("/ekf/path", 1);
-
-    // Initialize path message
     path_msg_.header.frame_id = "map";
   }
 
-  void spin() {
-    ros::spin();
-  }
+  void spin() { ros::spin(); }
 
 private:
   // ROS
   ros::NodeHandle nh_;
-  ros::Subscriber sub_odom_, sub_imu_, sub_vision_, sub_gt_path_;
+  ros::Subscriber sub_odom_, sub_imu_, sub_vision_, sub_labels_, sub_gt_path_;
   ros::Publisher  pub_odom_fused_, pub_path_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   tf2_ros::Buffer tf_buffer_;
-  tf2_ros::TransformListener tf_listener_{tf_buffer_};
+  tf2_ros::TransformListener tf_listener_;
+
+  // buffers for paired vision data
+  std::vector<geometry_msgs::Pose> latest_poses_;
+  std::vector<std::string>         latest_labels_;
 
   bool initialized_ = false;
+  ros::Time last_odom_time_;
 
-  // EKF state
-  Eigen::Vector3d state_;      // [x, y, theta]
-  Eigen::Matrix3d cov_;        // 3×3 covariance
+  // EKF state & noise
+  Eigen::Vector3d state_;
+  Eigen::Matrix3d cov_;
+  Eigen::Matrix2d Q_;
+  double          R_imu_;
+  Eigen::Matrix2d R_vis_;
 
-  // Noise
-  Eigen::Matrix2d Q_;          // process noise for [v, ω]
-  double          R_imu_;      // yaw measurement variance
-  Eigen::Matrix2d R_vis_;      // vision [x_cam, y_cam] variance
+  // A landmark entry now carries its class tag
+  struct Landmark { std::string cls; Eigen::Vector2d pos; };
+  std::vector<Landmark> landmarks_;
 
-  // Landmarks
-  std::vector<Eigen::Vector2d> landmarks_;
-
-  // Path history
   nav_msgs::Path path_msg_;
 
-  // Callbacks
+  // --- callbacks & helpers ---
+
   void odomCallback(const nav_msgs::Odometry::ConstPtr& odom_msg) {
-    if (!initialized_) return; // wait for ground truth
+    if (!initialized_) return;
     double v = odom_msg->twist.twist.linear.x;
     double w = odom_msg->twist.twist.angular.z;
     ros::Time t = odom_msg->header.stamp;
-
-    double dt = (last_odom_time_.isZero()) 
-                  ? 0.0 
-                  : (t - last_odom_time_).toSec();
+    double dt = last_odom_time_.isZero() ? 0.0 : (t - last_odom_time_).toSec();
     last_odom_time_ = t;
-
-    if (dt > 0) predict(v, w, dt);
+    if (dt > 0) predict(v,w,dt);
     publishFused(t);
   }
 
-    /**
-   * @brief Callback for the BNO055 IMU plugin.
-   *
-   * The utils/IMU message provides roll, pitch, yaw (in radians)
-   * along with linear acceleration (unused here). We extract yaw
-   * and call updateIMU() to perform the EKF measurement update.
-   * NOTE: utils/IMU has no Header, so we stamp it with ros::Time::now().
-   */
-  void imuCallback(const utils::IMU::ConstPtr& imu_msg)
-  {
+  void imuCallback(const utils::IMU::ConstPtr& imu_msg) {
     if (!initialized_) return;
-    // 1) Read yaw (heading) from the IMU message
-    double meas_yaw = imu_msg->yaw;
-
-    // (Optional) you can also access roll/pitch/accel if you extend your filter:
-    // double meas_roll  = imu_msg->roll;
-    // double meas_pitch = imu_msg->pitch;
-    // double ax = imu_msg->accelx;
-    // double ay = imu_msg->accely;
-    // double az = imu_msg->accelz;
-
-    // 2) Perform the EKF yaw update using this measurement
-    //    Pass the timestamp so publishing remains synchronized.
-    updateIMU(meas_yaw, ros::Time::now());
+    updateIMU(imu_msg->yaw, ros::Time::now());
   }
 
   void visionCallback(const geometry_msgs::PoseArray::ConstPtr& p_arr) {
-    if (!initialized_) return; // wait for ground truth
-    // Transform each Pose to chassis frame (tf listener needed)
-    std::vector<Eigen::Vector2d> meas;
-    geometry_msgs::PoseStamped in_ps, out_ps;
-    in_ps.header   = p_arr->header;
-    in_ps.header.frame_id = "camera::link_camera";
-
-    for (const auto& pose : p_arr->poses) {
-      // Build a stamped Pose for tf
-      in_ps.pose = pose;
-      // Transform from camera frame into chassis::link
-      tf_buffer_.transform(in_ps, out_ps, "chassis::link");
-      // Now out_ps.pose.position.x/y are in chassis frame
-      meas.emplace_back(out_ps.pose.position.x, out_ps.pose.position.y);
-
+    if (!initialized_) return;
+    // buffer and transform into chassis frame
+    latest_poses_.clear();
+    geometry_msgs::PoseStamped in, out;
+    in.header = p_arr->header;
+    in.header.frame_id = "camera::link_camera";
+    for (auto& ps : p_arr->poses) {
+      in.pose = ps;
+      tf_buffer_.transform(in, out, "chassis::link");
+      latest_poses_.push_back(out.pose);
     }
-    updateVision(meas, p_arr->header.stamp);
+    tryFuseVision(p_arr->poses.size());
   }
 
+  void visionLabelCb(const example::SignLabelArray::ConstPtr& msg) {
+    latest_labels_ = msg->labels;
+    tryFuseVision(msg->labels.size());
+  }
 
+  void tryFuseVision(size_t expected) {
+    if (latest_poses_.size()!=expected || latest_labels_.size()!=expected) return;
+    // build 2D meas
+    std::vector<Eigen::Vector2d> meas2d;
+    for (auto& ps: latest_poses_)
+      meas2d.emplace_back(ps.position.x, ps.position.y);
+    // fused update with paired labels
+    updateVision(meas2d, latest_labels_, ros::Time::now());
+    latest_poses_.clear();
+    latest_labels_.clear();
+  }
 
-
-  /**
-   * @brief Grabs the very first pose from /ground_truth_path to seed the EKF.
-   */
-  void groundTruthCallback(const nav_msgs::Path::ConstPtr& path_msg)
-  {
+  void groundTruthCallback(const nav_msgs::Path::ConstPtr& path_msg) {
     if (initialized_ || path_msg->poses.empty()) return;
-
-    // Use the first PoseStamped
     auto& ps = path_msg->poses.front();
-    state_(0) = ps.pose.position.x;
-    state_(1) = ps.pose.position.y;
-
-    // Extract yaw from the orientation
-    tf2::Quaternion q(
-      ps.pose.orientation.x,
-      ps.pose.orientation.y,
-      ps.pose.orientation.z,
-      ps.pose.orientation.w
-    );
-    double roll, pitch, yaw;
-    tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
-    state_(2) = yaw;
-
-    // Initialize last_odom_time_ to align prediction timing
-    last_odom_time_ = ps.header.stamp;
-
-    initialized_ = true;
-    ROS_INFO("EKF initialized to ground truth: x=%.3f, y=%.3f, yaw=%.3f",
-            state_(0), state_(1), state_(2));
-
-    // We don’t need any more ground-truth messages
+    state_(0)=ps.pose.position.x; state_(1)=ps.pose.position.y;
+    tf2::Quaternion q(ps.pose.orientation.x, ps.pose.orientation.y,
+                      ps.pose.orientation.z, ps.pose.orientation.w);
+    double r,p,y; tf2::Matrix3x3(q).getRPY(r,p,y);
+    state_(2)=y; last_odom_time_=ps.header.stamp; initialized_=true;
+    ROS_INFO("EKF init ⟶ x=%.3f y=%.3f yaw=%.3f",state_(0),state_(1),state_(2));
     sub_gt_path_.shutdown();
   }
 
-
-
-
-
-
-  // EKF steps
   void predict(double v, double w, double dt) {
-    // State prediction
-    double theta = state_(2);
-    state_(0) += v * cos(theta) * dt;
-    state_(1) += v * sin(theta) * dt;
-    state_(2) += w * dt;
-
-    // Jacobians
-    Eigen::Matrix3d F = Eigen::Matrix3d::Identity();
-    F(0,2) = -v * sin(theta) * dt;
-    F(1,2) =  v * cos(theta) * dt;
-
-    Eigen::Matrix<double,3,2> B;
-    B << cos(theta)*dt, 0,
-         sin(theta)*dt, 0,
-         0,             dt;
-
-    // Covariance prediction
-    cov_ = F * cov_ * F.transpose() + B * Q_ * B.transpose();
+    double θ=state_(2);
+    state_(0)+=v*cos(θ)*dt; state_(1)+=v*sin(θ)*dt; state_(2)+=w*dt;
+    Eigen::Matrix3d F=Eigen::Matrix3d::Identity();
+    F(0,2) = -v*sin(θ)*dt; F(1,2)=v*cos(θ)*dt;
+    Eigen::Matrix<double,3,2> B; B<<cos(θ)*dt,0, sin(θ)*dt,0, 0,dt;
+    cov_ = F*cov_*F.transpose() + B*Q_*B.transpose();
   }
 
   void updateIMU(double meas_yaw, const ros::Time& t) {
-    // Measurement model: z = theta + noise
     Eigen::Vector3d H(0,0,1);
-    double z = meas_yaw;
-    double y = z - state_(2);
-    wrapAngle(y);
-
-    double S = H.transpose() * cov_ * H + R_imu_;
-    Eigen::Vector3d K = cov_ * H / S;
-
-    // State update
-    state_ += K * y;
-    state_(2) = normalizeAngle(state_(2));
-
-    // Covariance update
-    cov_ = (Eigen::Matrix3d::Identity() - K * H.transpose()) * cov_;
-    
+    double z=meas_yaw, y=z-state_(2); wrapAngle(y);
+    double S=H.transpose()*cov_*H + R_imu_;
+    Eigen::Vector3d K=cov_*H/S;
+    state_ += K*y; state_(2)=normalizeAngle(state_(2));
+    cov_ = (Eigen::Matrix3d::Identity()-K*H.transpose())*cov_;
     publishFused(t);
   }
 
-  void updateVision(const std::vector<Eigen::Vector2d>& meas, const ros::Time& t) {
-    // For each landmark-measurement pair (assume same order)
-    for (size_t i = 0; i < meas.size() && i < landmarks_.size(); ++i) {
-      Eigen::Vector2d m = meas[i];
-      Eigen::Vector2d L = landmarks_[i];
+  // ----------------- NEW overloaded updateVision -----------------
+  void updateVision(const std::vector<Eigen::Vector2d>& meas,
+                    const std::vector<std::string>& labels,
+                    const ros::Time& t)
+  {
+    for (size_t i=0; i<meas.size(); ++i) {
+      const auto& m = meas[i];
+      const auto& cls = labels[i];
+      // find nearest landmark of this class
+      double best_d = 1e9; Eigen::Vector2d L;
+      for (auto& lm: landmarks_) {
+        if (lm.cls!=cls) continue;
+        double d=(lm.pos-m).norm();
+        if (d<best_d) { best_d=d; L=lm.pos; }
+      }
+      if (best_d>5.0) continue;  // skip if too far (tunable!)
 
-      // Predict in chassis frame: p_hat = R^T (L - [x,y])
-      double theta = state_(2);
-      Eigen::Rotation2Dd R(-theta);
-      Eigen::Vector2d p_hat = R * (L - state_.head<2>());
-
-      // Residual
+      double θ=state_(2);
+      Eigen::Rotation2Dd R(-θ);
+      Eigen::Vector2d p_hat = R*(L - state_.head<2>());
       Eigen::Vector2d y = m - p_hat;
 
-      // Jacobian H (2×3)
       Eigen::Matrix<double,2,3> H;
-      H << -cos(theta), -sin(theta),  (L.x()*sin(theta) - L.y()*cos(theta) + state_(0)*sin(theta) - state_(1)*cos(theta)),
-            sin(theta), -cos(theta), -(L.x()*cos(theta) + L.y()*sin(theta) - state_(0)*cos(theta) - state_(1)*sin(theta));
+      H << -cos(θ), -sin(θ),  (L.x()*sin(θ)-L.y()*cos(θ)+state_(0)*sin(θ)-state_(1)*cos(θ)),
+             sin(θ), -cos(θ), -(L.x()*cos(θ)+L.y()*sin(θ)-state_(0)*cos(θ)-state_(1)*sin(θ));
 
-      // Innovation covariance
-      Eigen::Matrix2d S = H * cov_ * H.transpose() + R_vis_;
+      Eigen::Matrix2d S = H*cov_*H.transpose() + R_vis_;
+      Eigen::Matrix<double,3,2> K = cov_*H.transpose()*S.inverse();
 
-      // Kalman gain (3×2)
-      Eigen::Matrix<double,3,2> K = cov_ * H.transpose() * S.inverse();
-
-      // Update
-      state_ += K * y;
-      state_(2) = normalizeAngle(state_(2));
-      cov_ = (Eigen::Matrix3d::Identity() - K * H) * cov_;
+      state_ += K*y; state_(2)=normalizeAngle(state_(2));
+      cov_ = (Eigen::Matrix3d::Identity() - K*H)*cov_;
     }
-
     publishFused(t);
   }
+  // ---------------------------------------------------------------
 
-  // Broadcasting & publishing
+   // Broadcasting & publishing
   void publishFused(const ros::Time& t) {
     // 1) TF
     geometry_msgs::TransformStamped tf;
@@ -307,57 +243,53 @@ private:
     return a;
   }
   void wrapAngle(double& a) { a = normalizeAngle(a); }
+  double normalizeAngle(double a) {
+    while(a>M_PI) a-=2*M_PI;
+    while(a<-M_PI) a+=2*M_PI;
+    return a;
+  }
+  void wrapAngle(double& a) { a=normalizeAngle(a); }
 
   void loadLandmarks() {
     // Crosswalk signs
-    landmarks_.emplace_back(7.312,  -3.240);   // CWALK_K
-    landmarks_.emplace_back(6.627,  -4.181);   // CWALK_L
-    landmarks_.emplace_back(6.777,  -1.456);   // CWALK_M
-    landmarks_.emplace_back(6.130,  -2.342);   // CWALK_N
-    landmarks_.emplace_back(1.109, -12.486);   // CWALK_O
-    landmarks_.emplace_back(0.195, -11.869);   // CWALK_P
-
+    landmarks_.push_back({"crosswalk", Eigen::Vector2d(7.312, -3.240)});   // CWALK_K
+    landmarks_.push_back({"crosswalk", Eigen::Vector2d(6.627, -4.181)});   // CWALK_L
+    landmarks_.push_back({"crosswalk", Eigen::Vector2d(6.777, -1.456)});   // CWALK_M
+    landmarks_.push_back({"crosswalk", Eigen::Vector2d(6.130, -2.342)});   // CWALK_N
+    landmarks_.push_back({"crosswalk", Eigen::Vector2d(1.109, -12.486)});   // CWALK_O
+    landmarks_.push_back({"crosswalk", Eigen::Vector2d(0.195, -11.869)});   // CWALK_P
     // Enter-highway signs
-    landmarks_.emplace_back(5.871, -13.970);   // EHIGH_T
-    landmarks_.emplace_back(9.412,  -4.850);   // EHIGH_Y
-
+    landmarks_.push_back({"enterhighway", Eigen::Vector2d(5.871, -13.970)});   // EHIGH_T
+    landmarks_.push_back({"enterhighway", Eigen::Vector2d(9.412, -4.850)});   // EHIGH_Y
     // Leave-highway signs
-    landmarks_.emplace_back(10.686, -6.276);   // LHIGH_U
-    landmarks_.emplace_back(6.520, -12.700);   // LHIGH_Z
-    landmarks_.emplace_back(8.458, -14.359);   // LHIGH_H
-
+    landmarks_.push_back({"leavehighway", Eigen::Vector2d(10.686, -6.276)});   // LHIGH_U
+    landmarks_.push_back({"leavehighway", Eigen::Vector2d(6.520, -12.700)});   // LHIGH_Z
+    landmarks_.push_back({"leavehighway", Eigen::Vector2d(8.458, -14.359)});   // LHIGH_H
     // Oneway signs
-    landmarks_.emplace_back(3.341,  -9.821);   // ONEWAY_J
-    landmarks_.emplace_back(2.406,  -9.821);   // ONEWAY_B
-    landmarks_.emplace_back(9.196, -14.375);   // ONEWAY_E
-
+    landmarks_.push_back({"oneway", Eigen::Vector2d(3.341, -9.821)});   // ONEWAY_J
+    landmarks_.push_back({"oneway", Eigen::Vector2d(2.406, -9.821)});   // ONEWAY_B
+    landmarks_.push_back({"oneway", Eigen::Vector2d(9.196, -14.375)});   // ONEWAY_E
     // Parking signs
-    landmarks_.emplace_back(4.047,  -2.358);   // PRK_P1
-    landmarks_.emplace_back(2.857,  -2.358);   // PRK_P2
-    landmarks_.emplace_back(2.779,  -1.452);   // PRK_P3
-    landmarks_.emplace_back(4.459,  -1.452);   // PRK_P4
-
+    landmarks_.push_back({"parking", Eigen::Vector2d(4.047, -2.358)});   // PRK_P1
+    landmarks_.push_back({"parking", Eigen::Vector2d(2.857, -2.358)});   // PRK_P2
+    landmarks_.push_back({"parking", Eigen::Vector2d(2.779, -1.452)});   // PRK_P3
+    landmarks_.push_back({"parking", Eigen::Vector2d(4.459, -1.452)});   // PRK_P4
     // Priority signs
-    landmarks_.emplace_back(3.675, -13.050);   // PRIOR_D
-    landmarks_.emplace_back(0.204,  -6.031);   // PRIOR_F
-    landmarks_.emplace_back(5.544, -11.381);   // PRIOR_H
-    landmarks_.emplace_back(4.589,  -5.997);   // PRIOR_I
-
+    landmarks_.push_back({"priority", Eigen::Vector2d(3.675, -13.050)});   // PRIOR_D
+    landmarks_.push_back({"priority", Eigen::Vector2d(0.204, -6.031)});   // PRIOR_F
+    landmarks_.push_back({"priority", Eigen::Vector2d(5.544, -11.381)});   // PRIOR_H
+    landmarks_.push_back({"priority", Eigen::Vector2d(4.589, -5.997)});   // PRIOR_I
     // Prohibited signs
-    landmarks_.emplace_back(3.323,  -7.581);   // DENY_V
-    landmarks_.emplace_back(2.387,  -7.581);   // DENY_X
-    landmarks_.emplace_back(11.578, -4.504);   // DENY_G
-
+    landmarks_.push_back({"prohibited", Eigen::Vector2d(3.323, -7.581)});   // DENY_V
+    landmarks_.push_back({"prohibited", Eigen::Vector2d(2.387, -7.581)});   // DENY_X
+    landmarks_.push_back({"prohibited", Eigen::Vector2d(11.578, -4.504)});   // DENY_G
     // Roundabout signs
-    landmarks_.emplace_back(8.766,  -4.179);   // GIR_Q
-    landmarks_.emplace_back(10.320, -4.869);   // GIR_R
-    landmarks_.emplace_back(11.015, -3.297);   // GIR_S
-
-    ROS_INFO("Loaded %lu landmarks", landmarks_.size());
-}
+    landmarks_.push_back({"roundabout", Eigen::Vector2d(8.766, -4.179)});   // GIR_Q
+    landmarks_.push_back({"roundabout", Eigen::Vector2d(10.320, -4.869)});   // GIR_R
+    landmarks_.push_back({"roundabout", Eigen::Vector2d(11.015, -3.297)});   // GIR_S
+ 
 
 
-  ros::Time last_odom_time_;
 };
 
 int main(int argc, char** argv) {
