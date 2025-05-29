@@ -4,3 +4,4 @@ build/
 .catkin_workspace
 src/CMakeLists.txt
 **/*.pyc
+drive.avi
