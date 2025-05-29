@@ -6,7 +6,7 @@ add_compile_options(-std=c++11)
 find_package(catkin REQUIRED COMPONENTS
   gazebo_ros
   roscpp
-  utils
+  utils_ros
 )
 
 find_package(gazebo REQUIRED)
@@ -16,7 +16,7 @@ generate_messages(DEPENDENCIES)
 catkin_package(CATKIN_DEPENDS 
   gazebo_ros
   roscpp
-  utils
+  utils_ros
 )
 
 link_directories(${GAZEBO_LIBRARY_DIRS})

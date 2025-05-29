@@ -6,7 +6,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
-  utils
+  utils_ros
   cv_bridge
   sensor_msgs
   tf2_ros
@@ -20,13 +20,13 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(Eigen3 REQUIRED)
 
 catkin_package(
-  CATKIN_DEPENDS roscpp rospy std_msgs utils cv_bridge sensor_msgs tf2_ros geometry_msgs vision_msgs nav_msgs tf2_geometry_msgs
+  CATKIN_DEPENDS roscpp rospy std_msgs utils_ros cv_bridge sensor_msgs tf2_ros geometry_msgs vision_msgs nav_msgs tf2_geometry_msgs
 )
 
 include_directories(
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}      # for Eigen3
-  ${utils_INCLUDE_DIRS}   # ← usually same as catkin_INCLUDE_DIRS
+  ${utils_ros_INCLUDE_DIRS}   # ← usually same as catkin_INCLUDE_DIRS
 )
 
 ## Install your existing Python node
@@ -43,7 +43,7 @@ add_executable(ekf_fusion_node src/ekf_fusion_node.cpp)
 
 target_link_libraries(ekf_fusion_node
   ${catkin_LIBRARIES}
-  ${utils_LIBRARIES}   
+  ${utils_ros_LIBRARIES}   
 )
 
 ## If you want to install the binary

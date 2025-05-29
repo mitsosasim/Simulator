@@ -5,7 +5,7 @@
 #include <gazebo/physics/physics.hh>
 
 #include "ros/ros.h"
-#include "utils/IMU.h"
+#include "utils_ros/IMU.h"
 
 
 namespace gazebo
@@ -26,7 +26,7 @@ namespace gazebo
             // A ROS publisher
             ros::Publisher                      m_pubBNO;
             
-            utils::IMU                  m_bno055_pose;
+            utils_ros::IMU                  m_bno055_pose;
 
         // Default constructor
         public: BNO055();

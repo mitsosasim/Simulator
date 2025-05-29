@@ -44,7 +44,7 @@ from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import Pose, PoseArray, TransformStamped
 from ultralytics import YOLO
 from std_msgs.msg import MultiArrayDimension
-from utils.msg import SignLabelArray  
+from utils_ros.msg import SignLabelArray  
 
 
 
@@ -122,6 +122,16 @@ class YoloSignPoseNode:
                                           SignLabelArray, queue_size=1)
         
 
+
+        # Pre-compute one color per class name (so boxes match YOLO plots)
+        rng = np.random.RandomState(42)
+        self.class_colors = {}
+        for cls_id, name in self.model.names.items():
+            c = rng.randint(0, 256, 3).tolist()
+            # store as BGR tuple
+            self.class_colors[name] = (int(c[2]), int(c[1]), int(c[0]))
+        
+
         # OpenCV window for visualization
         cv2.namedWindow('Detections', cv2.WINDOW_NORMAL)
         self.last_annotated = None
@@ -170,6 +180,9 @@ class YoloSignPoseNode:
         X = (cx - self.cam_K[0,2]) * Z / self.cam_K[0,0]
         Y = (cy - self.cam_K[1,2]) * Z / self.cam_K[1,1]
         return np.array([X, Y, Z], dtype=np.float32)
+
+
+    
 
     def image_cb(self, msg: Image):
         """
@@ -303,33 +316,61 @@ class YoloSignPoseNode:
             color = (255, 0, 0) if used_pnp else (0, 255, 0)
             cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
 
-            # Prepare label with class name and confidence
+            # # Prepare label with class name and confidence
+            # label = f"{cls_name} {conf:.2f}"
+            # font = cv2.FONT_HERSHEY_SIMPLEX
+            # font_scale = 0
+            # thickness = 1
+
+            # # Measure text size to draw background
+            # (text_w, text_h), baseline = cv2.getTextSize(label, font, font_scale, thickness)
+            # # Draw filled rectangle for label background
+            # cv2.rectangle(
+            #     annotated,
+            #     (x1, y1 - text_h - baseline - 4),
+            #     (x1 + text_w, y1),
+            #     color,
+            #     cv2.FILLED
+            # )
+            # # Draw label text in white
+            # cv2.putText(
+            #     annotated,
+            #     label,
+            #     (x1, y1 - baseline - 2),
+            #     font,
+            #     font_scale,
+            #     (255, 255, 255),
+            #     thickness,
+            #     lineType=cv2.LINE_AA
+            # )
+
+
+            # 1) Draw the label (class + confidence) above the box
             label = f"{cls_name} {conf:.2f}"
             font = cv2.FONT_HERSHEY_SIMPLEX
-            font_scale = 0
+            font_scale = 0.5
             thickness = 1
-
-            # Measure text size to draw background
+            # get text size for background
             (text_w, text_h), baseline = cv2.getTextSize(label, font, font_scale, thickness)
-            # Draw filled rectangle for label background
+            # draw filled rectangle behind text
             cv2.rectangle(
                 annotated,
-                (x1, y1 - text_h - baseline - 4),
-                (x1 + text_w, y1),
+                (x1, y1 - text_h - baseline - 6),
+                (x1 + text_w + 4, y1),
                 color,
                 cv2.FILLED
             )
-            # Draw label text in white
+            # draw the text itself
             cv2.putText(
                 annotated,
                 label,
-                (x1, y1 - baseline - 2),
+                (x1 + 2, y1 - baseline - 4),
                 font,
                 font_scale,
                 (255, 255, 255),
                 thickness,
                 lineType=cv2.LINE_AA
-            )
+             )
 
             # Convert to meters
             x_m, y_m, z_m = (tvec.flatten() / 100.0)

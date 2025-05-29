@@ -12,13 +12,13 @@
 
   <build_depend>gazebo_ros</build_depend>
   <build_depend>roscpp</build_depend>
-  <build_depend>utils</build_depend>
+  <build_depend>utils_ros</build_depend>
   
   <build_export_depend>gazebo_ros</build_export_depend>
   <build_export_depend>roscpp</build_export_depend>
   
   <exec_depend>gazebo_ros</exec_depend>
   <exec_depend>roscpp</exec_depend>
-  <exec_depend>utils</exec_depend>
+  <exec_depend>utils_ros</exec_depend>
   
 </package>

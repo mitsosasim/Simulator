@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(utils)
+project(utils_ros)
 
 find_package(catkin REQUIRED COMPONENTS
   std_msgs

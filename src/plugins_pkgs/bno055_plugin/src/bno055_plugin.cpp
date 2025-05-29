@@ -29,7 +29,7 @@ namespace gazebo
       			}
 
             this->m_ros_node.reset(new ::ros::NodeHandle("/bnoNODEvirt"));
-          	this->m_pubBNO = this->m_ros_node->advertise<utils::IMU>(topic_name, 2);
+          	this->m_pubBNO = this->m_ros_node->advertise<utils_ros::IMU>(topic_name, 2);
 
 
             if(DEBUG)
