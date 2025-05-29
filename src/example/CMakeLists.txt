@@ -41,6 +41,8 @@ catkin_install_python(PROGRAMS
 
 add_executable(ekf_fusion_node src/ekf_fusion_node.cpp)
 
+add_dependencies(ekf_fusion_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
 target_link_libraries(ekf_fusion_node
   ${catkin_LIBRARIES}
   ${utils_ros_LIBRARIES}   
