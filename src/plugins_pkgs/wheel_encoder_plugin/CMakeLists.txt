@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
   gazebo_ros
   roscpp
   utils_ros
+  nav_msgs
 )
 
 find_package(gazebo REQUIRED)

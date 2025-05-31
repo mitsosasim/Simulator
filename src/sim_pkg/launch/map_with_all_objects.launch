@@ -61,6 +61,8 @@
         args="0 0 0   0 0 0 1   steer_right::link_steer   wheel_front_right::link_rim"/>
 
 
+
+
   <!-- start ground_truth, rviz -->
   <node pkg="example" type="ground_truth.py" name="ground_truth" output="screen"> </node> 
   <!-- <node pkg="example" type="sign_detector.py" name="sign_detector" output="screen"> </node>" -->
