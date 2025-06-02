@@ -16,7 +16,8 @@ import numpy as np
 import tf2_ros
 import torch
 import tf.transformations as tfm
-
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import Pose, PoseArray, TransformStamped

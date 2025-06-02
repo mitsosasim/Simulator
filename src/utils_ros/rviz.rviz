@@ -5,12 +5,9 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /Status1
-        - /Grid1
         - /Grid1/Offset1
-        - /Map1
         - /Map1/Position1
-        - /Marker1
+        - /Path1
         - /EKF Path1
       Splitter Ratio: 0.5
     Tree Height: 824
@@ -91,14 +88,6 @@ Visualization Manager:
       Topic: /ground_truth_path
       Unreliable: false
       Value: true
-    - Class: rviz/Marker
-      Enabled: false
-      Marker Topic: visualization_marker
-      Name: Marker
-      Namespaces:
-        {}
-      Queue Size: 100
-      Value: false
     - Alpha: 1
       Buffer Length: 1
       Class: rviz/Path
@@ -151,7 +140,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 22.224607467651367
+      Distance: 5.727733612060547
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -159,9 +148,9 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -3.85695743560791
-        Y: -9.94211483001709
-        Z: 0.19956260919570923
+        X: 1.6779645681381226
+        Y: -12.126968383789062
+        Z: 1.3010326623916626
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
@@ -188,4 +177,4 @@ Window Geometry:
     collapsed: false
   Width: 1858
   X: 671
-  Y: 104
+  Y: 30

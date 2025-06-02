@@ -392,10 +392,18 @@
     <plugin name='gps' filename='libgps_plugin.so'> </plugin>
 
     <plugin name="wheel_encoder_plugin" filename="libwheel_encoder_plugin.so">
+      <!-- Rear‐wheel joints (drive) -->
       <leftjoint>joint_leftrear_rim</leftjoint>
       <rightjoint>joint_rightrear_rim</rightjoint>
+
+      <!-- Front-steer joints (steering) -->
+      <steer_left_joint>joint_leftfront_steer</steer_left_joint>
+      <steer_right_joint>joint_rightfront_steer</steer_right_joint>
+
+      <!-- Car geometry parameters -->
       <wheel_radius>0.0325</wheel_radius>
       <wheel_base>0.26</wheel_base>
+
       <publish_rate>100</publish_rate>
       <robotNamespace>/</robotNamespace>
       <topic_name>/automobile/wheel_encoder/odometry</topic_name>

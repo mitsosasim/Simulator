@@ -418,6 +418,8 @@ private:
     geometry_msgs::PoseStamped ps;
     ps.header = odo.header;
     ps.pose   = odo.pose.pose;
+    path_msg_.header.stamp = t;  // or = odo.header.stamp
+
     path_msg_.poses.push_back(ps);
     pub_path_.publish(path_msg_);
   }

@@ -63,7 +63,7 @@ void GazeboRosWheelEncoder::Load(physics::ModelPtr model,
     steer_right_name_ = sdf->Get<std::string>("steer_right_joint");
   else
   {
-    ROS_ERROR("AckermannWheelEncoderPlugin: <steer_right_joint> missing");
+    ROS_ERROR("!!!!!!!!!!!!!!!AckermannWheelEncoderPlugin: <steer_right_joint> missing");
     return;
   }
 
