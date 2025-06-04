@@ -226,6 +226,22 @@ class YoloSignPoseNode:
                 )
                 used_pnp = bool(ok)
 
+                for j, pt in enumerate(img_pts.astype(int)):
+                    cv2.circle(annotated, tuple(pt), 6, (0, 255, 255), -1)
+                    cv2.putText(annotated, f"{j}", tuple(pt + 8), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                for j in range(4):
+                    pt1 = tuple(img_pts[j].astype(int))
+                    pt2 = tuple(img_pts[(j+1)%4].astype(int))
+                    cv2.line(annotated, pt1, pt2, (0, 255, 255), 2)
+                
+                if used_pnp and rvec is not None and tvec is not None:
+                    axis = np.float32([[real_w,0,0], [0,real_h,0], [0,0,real_w]]).reshape(-1,3)
+                    imgpts, _ = cv2.projectPoints(axis, rvec, tvec, self.cam_K, self.dist)
+                    corner = tuple(img_pts[0].astype(int))
+                    cv2.line(annotated, corner, tuple(imgpts[0].ravel().astype(int)), (0,0,255), 3) # X - red
+                    cv2.line(annotated, corner, tuple(imgpts[1].ravel().astype(int)), (0,255,0), 3) # Y - green
+                    cv2.line(annotated, corner, tuple(imgpts[2].ravel().astype(int)), (255,0,0), 3) # Z - blue
+
             elif shape=='triangle' and len(pts)==3:
                 obj_pts = np.array([
                     [0,0,0], [real_w,0,0],

@@ -32,6 +32,8 @@ include_directories(
 ## Install your existing Python node
 catkin_install_python(PROGRAMS
   src/sign_detector_node.py
+  src/robot_localization.py
+
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
