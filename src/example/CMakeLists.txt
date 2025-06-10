@@ -42,15 +42,26 @@ catkin_install_python(PROGRAMS
 ## -------------------------------------------------------------------
 
 add_executable(ekf_fusion_node src/ekf_fusion_node.cpp)
+add_executable(robot_localization src/robot_localization.cpp)
 
 add_dependencies(ekf_fusion_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(robot_localization ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 target_link_libraries(ekf_fusion_node
   ${catkin_LIBRARIES}
   ${utils_ros_LIBRARIES}   
 )
 
+target_link_libraries(robot_localization
+  ${catkin_LIBRARIES}
+  ${utils_ros_LIBRARIES}   
+)
+
 ## If you want to install the binary
 install(TARGETS ekf_fusion_node
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+install(TARGETS robot_localization
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

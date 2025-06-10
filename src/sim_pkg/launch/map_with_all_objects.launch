@@ -70,7 +70,10 @@
 
   <node pkg="example" type="sign_detector_node.py" name="sign_detector" output="screen"/>
   <node pkg="example" type="ekf_fusion_node" name="ekf_fusion" output="screen"/>
-  <node pkg="example" type="robot_localization.py" name="robot_localization" output="screen"/>
+  <!-- <node pkg="example" type="robot_localization.py" name="robot_localization" output="screen"/> -->
+  <node pkg="example" type="robot_localization" name="robot_localization" output="screen"/>
+
+
 
   <!--<node pkg="sim_pkg" type="delay.sh" args="15 sim_pkg stop_signs.launch"          name="stop_signs"           output="screen"/>
   <node pkg="sim_pkg" type="delay.sh" args="15 sim_pkg pedestrian_objects.launch"  name="pedestrian_objects"   output="screen"/>
