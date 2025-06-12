@@ -266,8 +266,11 @@ private:
 
   // Attempt to fuse vision if both poses & labels are available
   void tryFuseVision() {
-    if (latest_poses_.size() != latest_labels_.size() || latest_poses_.empty())
+    if (latest_poses_.size() != latest_labels_.size() || latest_poses_.empty()) {
+      ROS_WARN_STREAM_THROTTLE(2.0, "[EKF] Vision: pose/label size mismatch or empty. poses=" << latest_poses_.size() << " labels=" << latest_labels_.size());
       return;
+    }
+    ROS_INFO_STREAM("[EKF] Vision: Fusing " << latest_poses_.size() << " detections.");
 
     // Build 2D measurement vector
     std::vector<Eigen::Vector2d> meas;
@@ -283,73 +286,65 @@ private:
 
   // 6) VK: Vision update step (landmark association & EKF correction)
   void updateVision(const std::vector<Eigen::Vector2d>& meas,
-                    const std::vector<std::string>& labels,
-                    const ros::Time& t)
-  {
-    // Loop through each detected sign
+                  const std::vector<std::string>& labels,
+                  const ros::Time& t)
+{
     for (size_t i = 0; i < meas.size(); ++i) {
-      const auto& m   = meas[i];
-      const auto& cls = labels[i];
+        const auto& m   = meas[i];
+        const auto& cls = labels[i];
 
-      // Associate with nearest landmark of matching class
-      double best_d = 1e9;
-      Eigen::Vector2d L;
-      for (const auto& lm : landmarks_) {
-        if (lm.cls != cls) continue;
-        double d = (lm.pos - m).norm();
-        if (d < best_d) {
-          best_d = d;
-          L = lm.pos;
+        // Associate with nearest landmark of matching class
+        double best_d = 1e9;
+        Eigen::Vector2d L;
+        for (const auto& lm : landmarks_) {
+            if (lm.cls != cls) continue;
+            double d = (lm.pos - m).norm();
+            if (d < best_d) {
+                best_d = d;
+                L = lm.pos;
+            }
         }
-      }
-      // If no landmark is within ~5 m, skip
-      if (best_d > 5.0) continue;
+        if (best_d > 5.0) {
+            ROS_WARN_STREAM_THROTTLE(2.0, "[EKF] Vision: No landmark match for class " << cls << " at " << m.transpose() << " (closest " << best_d << " m)");
+            continue;
+        }
 
-      // Compute predicted measurement: transform landmark into robot frame
-      double th = state_(2);
-      Eigen::Rotation2Dd R(-th);
-      Eigen::Vector2d p_hat = R * (L - state_.head<2>());
+        ROS_INFO_STREAM("[EKF] Vision: Updating with class " << cls << " at " << m.transpose() << " matched to landmark " << L.transpose() << " (dist " << best_d << " m)");
 
-      Eigen::Vector2d innov = m - p_hat; // Innovation in chassis frame
+        // Compute predicted measurement: transform landmark into robot frame
+        double th = state_(2);
+        Eigen::Rotation2Dd R(-th);
+        Eigen::Vector2d p_hat = R * (L - state_.head<2>());
 
-      // Build H_vis (2×5) Jacobian with respect to [x,y,θ,v,ω]
-      Eigen::Matrix<double,2,5> H_vis = Eigen::Matrix<double,2,5>::Zero();
+        Eigen::Vector2d innov = m - p_hat; // Innovation in chassis frame
 
-      // Let (x_l, y_l) = landmark map coords, (x_r, y_r) = robot state[0..1]
-      // H_vis = ∂(p_hat)/∂state, where p_hat = R*(L - [x,y])
-      // ∂p_hat/∂x = [ -cosθ ;  sinθ ]
-      // ∂p_hat/∂y = [ -sinθ ; -cosθ ]
-      // ∂p_hat/∂θ = [ -(Lx - x) * sinθ - (Ly - y) * cosθ ;
-      //               (Lx - x) * cosθ - (Ly - y) * sinθ ]
-      // ∂p_hat/∂v, ∂p_hat/∂ω = 0
-      double lx = L.x(), ly = L.y();
-      double rx = state_(0), ry = state_(1);
-      double dx = lx - rx, dy = ly - ry;
+        // Build H_vis (2×5) Jacobian with respect to [x,y,θ,v,ω]
+        Eigen::Matrix<double,2,5> H_vis = Eigen::Matrix<double,2,5>::Zero();
+        double lx = L.x(), ly = L.y();
+        double rx = state_(0), ry = state_(1);
+        double dx = lx - rx, dy = ly - ry;
 
-      H_vis(0,0) = -cos(th);
-      H_vis(0,1) = -sin(th);
-      H_vis(0,2) =  dx * (-sin(th)) + dy * (-cos(th));
-      // H_vis(0,3) = 0, H_vis(0,4) = 0
+        H_vis(0,0) = -cos(th);
+        H_vis(0,1) = -sin(th);
+        H_vis(0,2) =  dx * (-sin(th)) + dy * (-cos(th));
+        H_vis(1,0) =  sin(th);
+        H_vis(1,1) = -cos(th);
+        H_vis(1,2) =  dx * ( cos(th)) + dy * (-sin(th));
 
-      H_vis(1,0) =  sin(th);
-      H_vis(1,1) = -cos(th);
-      H_vis(1,2) =  dx * ( cos(th)) + dy * (-sin(th));
-      // H_vis(1,3) = 0, H_vis(1,4) = 0
+        Eigen::Matrix2d S = H_vis * cov_ * H_vis.transpose() + R_vis_;
+        Eigen::Matrix<double,5,2> K = cov_ * H_vis.transpose() * S.inverse();
 
-      // Compute Kalman gain
-      Eigen::Matrix2d S = H_vis * cov_ * H_vis.transpose() + R_vis_;
-      Eigen::Matrix<double,5,2> K = cov_ * H_vis.transpose() * S.inverse();
+        ROS_INFO_STREAM("[EKF] Vision: Innovation = " << innov.transpose());
+        ROS_INFO_STREAM("[EKF] Vision: Kalman gain (first row) = " << K.row(0));
 
-      // State update
-      state_ += K * innov;
-      state_(2) = normalizeAngle(state_(2));
-
-      // Covariance update
-      cov_ = (Eigen::Matrix<double,5,5>::Identity() - K * H_vis) * cov_;
+        // State update
+        state_ += K * innov;
+        state_(2) = normalizeAngle(state_(2));
+        cov_ = (Eigen::Matrix<double,5,5>::Identity() - K * H_vis) * cov_;
     }
 
     publishFused(t);
-  }
+}
 
   // ====================
   //  EKF PREDICTION

@@ -199,7 +199,7 @@ private:
   void publishFused(const ros::Time& t) {
     // 1) Broadcast TF “map → chassis::link”
     geometry_msgs::TransformStamped tf;
-    tf.header.stamp    = t;
+    tf.header.stamp    = ros::Time::now();
     tf.header.frame_id = "map";
     tf.child_frame_id  = "chassis::link";
     tf.transform.translation.x = state_(0);
