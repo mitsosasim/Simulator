@@ -17,12 +17,14 @@ import tf2_ros
 import torch
 import tf.transformations as tfm
 import warnings
+import tf2_geometry_msgs
 warnings.filterwarnings("ignore", category=FutureWarning)
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import Pose, PoseArray, TransformStamped
 from std_msgs.msg import MultiArrayDimension
 from utils_ros.msg import SignLabelArray
+from geometry_msgs.msg import PoseStamped
 
 class YoloSignPoseNode:
     def __init__(self):
@@ -81,6 +83,10 @@ class YoloSignPoseNode:
 
         self.cam_K = None  # Camera intrinsic matrix
         self.dist  = None  # Camera distortion coefficients
+
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.last_tf_stamps = {}  # Add this line
 
         # Subscribe to camera info to get intrinsics
         rospy.Subscriber(
@@ -242,15 +248,23 @@ class YoloSignPoseNode:
                     cv2.line(annotated, corner, tuple(imgpts[1].ravel().astype(int)), (0,255,0), 3) # Y - green
                     cv2.line(annotated, corner, tuple(imgpts[2].ravel().astype(int)), (255,0,0), 3) # Z - blue
 
-            elif shape=='triangle' and len(pts)==3:
-                obj_pts = np.array([
-                    [0,0,0], [real_w,0,0],
-                    [real_w/2, real_h, 0]
-                ], dtype=np.float32)
-                ok, rvec, tvec = cv2.solvePnP(
-                    obj_pts, pts, self.cam_K, self.dist
-                )
-                used_pnp = bool(ok)
+            elif shape=='triangle':
+                if len(pts) == 3 and pts.shape == (3,2):
+                    obj_pts = np.array([
+                        [0,0,0], [real_w,0,0],
+                        [real_w/2, real_h, 0]
+                    ], dtype=np.float32)
+                    try:
+                        ok, rvec, tvec = cv2.solvePnP(
+                            obj_pts, pts, self.cam_K, self.dist,
+                            flags=cv2.SOLVEPNP_ITERATIVE, useExtrinsicGuess=False
+                        )
+                        used_pnp = bool(ok)
+                    except cv2.error as e:
+                        rospy.logwarn(f"[YOLO] Triangle: solvePnP failed: {e}")
+                        rvec, tvec, used_pnp = None, None, False
+                else:
+                    rospy.logwarn(f"[YOLO] Triangle: need 3 points with shape (3,2), got {pts.shape}, skipping solvePnP")
 
             elif shape=='diamond' and len(pts)==4:
                 img_pts = self.order_pts(pts)
@@ -313,7 +327,7 @@ class YoloSignPoseNode:
                         (x1, y1 - th - baseline - 60),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_col, 2)
 
-            # — build & publish Pose + TF —
+                        # — build & publish Pose + TF —
             pose = Pose()
             pose.position.x, pose.position.y, pose.position.z = x_m, y_m, z_m
             if rvec is not None:
@@ -324,9 +338,38 @@ class YoloSignPoseNode:
                 pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = q
             else:
                 pose.orientation.w = 1.0  # Default orientation if not available
-            poses.poses.append(pose)
 
-            # Publish a TF frame for each detected sign
+            # Print in camera frame for debugging
+            print(f"[YOLO] Detected sign in camera frame: X={x_m:.2f} Y={y_m:.2f} Z={z_m:.2f}")
+
+            # Transform pose to chassis::link for EKF publishing
+            pose_stamped = PoseStamped()
+            pose_stamped.header = msg.header  # camera frame
+            pose_stamped.pose = pose
+
+            try:
+                # Wait for transform to be available
+                self.tf_buffer.can_transform(
+                    "chassis::link",
+                    pose_stamped.header.frame_id,
+                    rospy.Time(0),
+                    rospy.Duration(0.2)
+                )
+                tf_out = self.tf_buffer.lookup_transform(
+                    "chassis::link",
+                    pose_stamped.header.frame_id,
+                    rospy.Time(0),
+                    rospy.Duration(0.2)
+                )
+                pose_chassis = tf2_geometry_msgs.do_transform_pose(
+                    pose_stamped, tf_out
+                )
+                poses.poses.append(pose_chassis.pose)
+            except Exception as e:
+                rospy.logwarn(f"[YOLO] TF transform to chassis::link failed: {e}")
+                continue
+
+            # Publish a TF frame for each detected sign (still in camera frame)
             tf_msg = TransformStamped()
             tf_msg.header         = msg.header
             tf_msg.child_frame_id = f"sign_{i}"
@@ -334,13 +377,24 @@ class YoloSignPoseNode:
             tf_msg.transform.translation.y = y_m
             tf_msg.transform.translation.z = z_m
             tf_msg.transform.rotation       = pose.orientation
+             # Prevent duplicate TF for the same frame and timestamp
+            last_stamp = self.last_tf_stamps.get(tf_msg.child_frame_id)
+            if last_stamp == tf_msg.header.stamp:
+                continue  # Skip duplicate
+            self.last_tf_stamps[tf_msg.child_frame_id] = tf_msg.header.stamp
+
             self.tf_br.sendTransform(tf_msg)
+
+            
 
         # — publish annotated image, poses & labels —
         self.last_annotated = annotated
         out_img = self.bridge.cv2_to_imgmsg(annotated, 'bgr8')
         out_img.header = msg.header
         self.pub_img.publish(out_img)
+
+        # Set PoseArray header to chassis::link and publish
+        poses.header.frame_id = "chassis::link"
         self.pub_poses.publish(poses)
 
         # Publish sign labels as a custom message
@@ -350,7 +404,6 @@ class YoloSignPoseNode:
             for row in dets
         ]
         self.pub_labels.publish(labels_msg)
-
     def spin(self):
         # Main loop for displaying annotated images in a window
         rate = rospy.Rate(30)

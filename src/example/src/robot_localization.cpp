@@ -75,6 +75,7 @@ private:
   ros::Subscriber sub_odom_, sub_imu_, sub_gt_path_;
   ros::Publisher  pub_odom_fused_, pub_path_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
+  ros::Time last_tf_stamp_;
 
   Eigen::Matrix<double,5,1>   state_;
   Eigen::Matrix<double,5,5>   cov_;
@@ -197,9 +198,12 @@ private:
   }
 
   void publishFused(const ros::Time& t) {
+    // Prevent duplicate TF with same timestamp
+    if (t == last_tf_stamp_) return;
+    last_tf_stamp_ = t;
     // 1) Broadcast TF “map → chassis::link”
     geometry_msgs::TransformStamped tf;
-    tf.header.stamp    = ros::Time::now();
+    tf.header.stamp    = t;
     tf.header.frame_id = "map";
     tf.child_frame_id  = "chassis::link";
     tf.transform.translation.x = state_(0);

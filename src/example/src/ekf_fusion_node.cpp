@@ -109,6 +109,8 @@ private:
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   tf2_ros::Buffer               tf_buffer_;
   tf2_ros::TransformListener    tf_listener_;
+  ros::Time last_tf_stamp_;
+
 
   // --------------------------------
   //  EKF state (5×1) and covariance (5×5)
@@ -278,6 +280,9 @@ private:
     for (const auto& p : latest_poses_)
       meas.emplace_back(p.position.x, p.position.y);
 
+
+    ROS_WARN_STREAM_THROTTLE(2.0, "CALLED updateVision with " << meas.size() << " measurements and " << latest_labels_.size() << " labels.");
+
     updateVision(meas, latest_labels_, ros::Time::now());
 
     latest_poses_.clear();
@@ -289,9 +294,13 @@ private:
                   const std::vector<std::string>& labels,
                   const ros::Time& t)
 {
+    ROS_WARN_STREAM_THROTTLE(2.0, "INSIDE updateVision with " << meas.size() << " measurements and " << latest_labels_.size() << " labels.");
+
     for (size_t i = 0; i < meas.size(); ++i) {
         const auto& m   = meas[i];
         const auto& cls = labels[i];
+        ROS_INFO_STREAM("[EKF] Vision: class=" << cls << " m=" << m.transpose());
+
 
         // Associate with nearest landmark of matching class
         double best_d = 1e9;
@@ -299,15 +308,19 @@ private:
         for (const auto& lm : landmarks_) {
             if (lm.cls != cls) continue;
             double d = (lm.pos - m).norm();
+            ROS_INFO_STREAM("  Compare to landmark " << lm.cls << " at " << lm.pos.transpose() << " d=" << d);
+
             if (d < best_d) {
                 best_d = d;
                 L = lm.pos;
             }
         }
-        if (best_d > 5.0) {
-            ROS_WARN_STREAM_THROTTLE(2.0, "[EKF] Vision: No landmark match for class " << cls << " at " << m.transpose() << " (closest " << best_d << " m)");
+        ROS_INFO_STREAM("[EKF] Vision: best_d=" << best_d << " for class=" << cls);
+        
+        if (best_d > 7) {
+            ROS_WARN_STREAM("[EKF] Vision: No landmark match for class " << cls << " at " << m.transpose() << " (closest " << best_d << " m)");
             continue;
-        }
+        }       
 
         ROS_INFO_STREAM("[EKF] Vision: Updating with class " << cls << " at " << m.transpose() << " matched to landmark " << L.transpose() << " (dist " << best_d << " m)");
 
@@ -336,6 +349,10 @@ private:
 
         ROS_INFO_STREAM("[EKF] Vision: Innovation = " << innov.transpose());
         ROS_INFO_STREAM("[EKF] Vision: Kalman gain (first row) = " << K.row(0));
+        ROS_INFO_STREAM("[EKF] Vision: m (measured) = " << m.transpose());
+        ROS_INFO_STREAM("[EKF] Vision: L (landmark) = " << L.transpose());
+        ROS_INFO_STREAM("[EKF] Vision: p_hat (predicted) = " << p_hat.transpose());
+
 
         // State update
         state_ += K * innov;
@@ -380,6 +397,8 @@ private:
   //  PUBLISH RESULTS
   // ====================
   void publishFused(const ros::Time& t) {
+    if (t == last_tf_stamp_) return;
+    last_tf_stamp_ = t;
     // 1) Broadcast TF “map → chassis::link”
     geometry_msgs::TransformStamped tf;
     tf.header.stamp    = t;
@@ -431,48 +450,48 @@ private:
   // Load hardcoded map landmarks
   void loadLandmarks() {
     // Crosswalk
-    landmarks_.push_back({"crosswalk", {7.312, -3.240}});
-    landmarks_.push_back({"crosswalk", {6.627, -4.181}});
-    landmarks_.push_back({"crosswalk", {6.777, -1.456}});
-    landmarks_.push_back({"crosswalk", {6.130, -2.342}});
-    landmarks_.push_back({"crosswalk", {1.109, -12.486}});
-    landmarks_.push_back({"crosswalk", {0.195, -11.869}});
+    landmarks_.push_back({"crosswalk", {7.312, -3.240}}); //CWALK_K
+    landmarks_.push_back({"crosswalk", {6.627, -4.181}}); //CWALK_L
+    landmarks_.push_back({"crosswalk", {6.777, -1.456}}); //CWALK_M
+    landmarks_.push_back({"crosswalk", {6.130, -2.342}}); //CWALK_N
+    landmarks_.push_back({"crosswalk", {1.109, -12.486}}); //CWALK_O
+    landmarks_.push_back({"crosswalk", {0.195, -11.869}}); //CWALK_P
 
     // Enter‐highway
-    landmarks_.push_back({"enterhighway", {5.871, -13.970}});
-    landmarks_.push_back({"enterhighway", {9.412, -4.850}});
+    landmarks_.push_back({"enterhighway", {5.871, -13.970}}); //EHIGH_T
+    landmarks_.push_back({"enterhighway", {9.412, -4.850}}); //EHIGH_Y
 
     // Leave‐highway
-    landmarks_.push_back({"leavehighway", {10.686, -6.276}});
-    landmarks_.push_back({"leavehighway", {6.520, -12.700}});
-    landmarks_.push_back({"leavehighway", {8.458, -14.359}});
+    landmarks_.push_back({"leavehighway", {10.686, -6.276}}); //LHIGH_U
+    landmarks_.push_back({"leavehighway", {6.520, -12.700}}); //LHIGH_Z
+    landmarks_.push_back({"leavehighway", {8.458, -14.359}}); //LHIGH_H
 
     // Oneway
-    landmarks_.push_back({"oneway", {3.341, -9.821}});
-    landmarks_.push_back({"oneway", {2.406, -9.821}});
-    landmarks_.push_back({"oneway", {9.196, -14.375}});
+    landmarks_.push_back({"oneway", {3.341, -9.821}}); //ONEWAY_J
+    landmarks_.push_back({"oneway", {2.406, -9.821}}); //ONEWAY_B
+    landmarks_.push_back({"oneway", {9.196, -14.375}}); //ONEWAY_E
 
     // Parking
-    landmarks_.push_back({"parking", {4.047, -2.358}});
-    landmarks_.push_back({"parking", {2.857, -2.358}});
-    landmarks_.push_back({"parking", {2.779, -1.452}});
-    landmarks_.push_back({"parking", {4.459, -1.452}});
+    landmarks_.push_back({"parking", {4.047, -2.358}}); //PRK_P1
+    landmarks_.push_back({"parking", {2.857, -2.358}}); //PRK_P2
+    landmarks_.push_back({"parking", {2.779, -1.452}}); //PRK_P3
+    landmarks_.push_back({"parking", {4.459, -1.452}}); //PRK_P4
 
     // Priority
-    landmarks_.push_back({"priority", {3.675, -13.050}});
-    landmarks_.push_back({"priority", {0.204, -6.031}});
-    landmarks_.push_back({"priority", {5.544, -11.381}});
-    landmarks_.push_back({"priority", {4.589, -5.997}});
+    landmarks_.push_back({"priority", {3.675, -13.050}}); //PRIOR_D
+    landmarks_.push_back({"priority", {0.204, -6.031}}); //PRIOR_F
+    landmarks_.push_back({"priority", {5.544, -11.381}}); //PRIOR_H
+    landmarks_.push_back({"priority", {4.589, -5.997}});  //PRIOR_I
 
     // Prohibited
-    landmarks_.push_back({"prohibited", {3.323, -7.581}});
-    landmarks_.push_back({"prohibited", {2.387, -7.581}});
-    landmarks_.push_back({"prohibited", {11.578, -4.504}});
+    landmarks_.push_back({"prohibited", {3.323, -7.581}}); //DENY_V
+    landmarks_.push_back({"prohibited", {2.387, -7.581}}); //DENY_X
+    landmarks_.push_back({"prohibited", {11.578, -4.504}}); //DENY_G
 
     // Roundabout
-    landmarks_.push_back({"roundabout", {8.766, -4.179}});
-    landmarks_.push_back({"roundabout", {10.320, -4.869}});
-    landmarks_.push_back({"roundabout", {11.015, -3.297}});
+    landmarks_.push_back({"roundabout", {8.766, -4.179}}); //GIR_Q
+    landmarks_.push_back({"roundabout", {10.320, -4.869}}); //GIR_R
+    landmarks_.push_back({"roundabout", {11.015, -3.297}}); //GIR_S
   }
 };
 
