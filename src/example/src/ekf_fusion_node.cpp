@@ -13,7 +13,7 @@
 //   • /ekf/path   (nav_msgs/Path of fused trajectory)
 //   • TF “map → chassis::link”
 //
-// Assumes wheel_encoder_plugin now supplies correct Ackermann (v, ω).
+// Assumes wheel_encoder_plugin supplies correct Ackermann (v, ω).
 // =======================================================
 
 #include <ros/ros.h>
@@ -40,52 +40,44 @@ public:
   EKFFusion(ros::NodeHandle& nh)
     : nh_(nh),
       tf_listener_(tf_buffer_),
-      // Initialize 5×1 state: [x, y, θ, v, ω]ᵀ
       state_(Eigen::Matrix<double,5,1>::Zero()),
-      // Initialize 5×5 covariance; small initial certainty on x,y,θ, v, ω
       cov_(Eigen::Matrix<double,5,5>::Zero()),
       initialized_(false),
-      last_odom_time_(ros::Time(0))
+      last_odom_time_(ros::Time(0)),
+      last_tf_stamp_(ros::Time(0))
   {
-    // --- 1) Load landmarks from map (hardcoded) ---
+    // 1) Load hardcoded landmarks
     loadLandmarks();
 
-    // --- 2) Set initial covariance ---
-    // We assume moderate uncertainty in initial pose and larger in velocity.
+    // 2) Initial covariance: moderate on x,y,θ; larger on v, ω
     cov_.setZero();
-    cov_(0,0) = 0.01;   // var(x)  = (0.1 m)²
-    cov_(1,1) = 0.01;   // var(y)  = (0.1 m)²
-    cov_(2,2) = 0.05;   // var(θ)  = (0.22 rad)² ≈ (12°)²
-    cov_(3,3) = 0.10;   // var(v)  = (0.316 m/s)²
-    cov_(4,4) = 0.05;   // var(ω)  = (0.223 rad/s)²
+    cov_(0,0) = 0.01;   // var(x) = (0.1 m)^2
+    cov_(1,1) = 0.01;   // var(y) = (0.1 m)^2
+    cov_(2,2) = 0.05;   // var(θ) ≈ (12°)^2
+    cov_(3,3) = 0.10;   // var(v)
+    cov_(4,4) = 0.05;   // var(ω)
 
-    // --- 3) Process noise Q (5×5) ---
-    // We model small acceleration noise in v, and yaw‐acceleration noise in ω.
+    // 3) Process noise Q
     Q_ = Eigen::Matrix<double,5,5>::Zero();
-    // σ_acc_v ≈ 0.05 m/s²  ⇒ var ≈ (0.05)² = 2.5e-3
-    Q_(3,3) = 2.5e-3;
-    // σ_acc_ω ≈ 0.02 rad/s²  ⇒ var ≈ (0.02)² = 4e-4
-    Q_(4,4) = 4e-4;
+    Q_(3,3) = 2.5e-3;   // var of acceleration noise in v
+    Q_(4,4) = 4e-4;     // var of yaw-accel noise in ω
 
-    // --- 4) Measurement noise R for odometry (2×2), IMU yaw, and vision (2×2) ---
-    // Odometry: encoder noise: σ_v ≈ 0.02 m/s, σ_ω ≈ 0.01 rad/s
+    // 4) Measurement noise R
     R_odom_ = Eigen::Matrix2d::Zero();
-    R_odom_(0,0) = 0.02 * 0.02;
-    R_odom_(1,1) = 0.01 * 0.01;
+    R_odom_(0,0) = 0.02 * 0.02;  // σ_v ≈ 0.02 m/s
+    R_odom_(1,1) = 0.01 * 0.01;  // σ_ω ≈ 0.01 rad/s
 
-    // IMU yaw: σ_yaw ≈ 0.03 rad  ⇒ var ≈ (0.03)² = 9e-4
-    R_imu_ = 9e-4;
+    R_imu_ = 9e-4;               // σ_yaw ≈ 0.03 rad
 
-    // Vision landmark: σ_pos ≈ 0.1 m  ⇒ var ≈ (0.1)² = 1e-2
-    R_vis_ = Eigen::Matrix2d::Identity() * 1e-2;
+    R_vis_ = Eigen::Matrix2d::Identity() * 1e-2;  // σ_pos ≈ 0.1 m
 
-    // --- 5) ROS subscribers & publishers ---
+    // 5) ROS subscribers & publishers
     sub_odom_   = nh_.subscribe("/automobile/wheel_encoder/odometry",
-                                1, &EKFFusion::odomCallback,    this);
+                                1, &EKFFusion::odomCallback, this);
     sub_imu_    = nh_.subscribe("/automobile/IMU",
-                                1, &EKFFusion::imuCallback,     this);
+                                1, &EKFFusion::imuCallback, this);
     sub_vision_ = nh_.subscribe("/sign_detector/sign_poses",
-                                1, &EKFFusion::visionCallback,  this);
+                                1, &EKFFusion::visionCallback, this);
     sub_labels_ = nh_.subscribe("/sign_detector/sign_labels",
                                 1, &EKFFusion::visionLabelCallback, this);
     sub_gt_path_= nh_.subscribe("/ground_truth_path",
@@ -95,74 +87,55 @@ public:
     pub_path_       = nh_.advertise<nav_msgs::Path>    ("/ekf/path", 1);
 
     path_msg_.header.frame_id = "map";
+
+    ROS_INFO("[EKF] EKF Fusion node initialized.");
   }
 
   void spin() { ros::spin(); }
 
 private:
-  // --------------------------------
-  //  ROS handles & TF
-  // --------------------------------
+  // ROS handles & TF
   ros::NodeHandle nh_;
   ros::Subscriber sub_odom_, sub_imu_, sub_vision_, sub_labels_, sub_gt_path_;
   ros::Publisher  pub_odom_fused_, pub_path_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   tf2_ros::Buffer               tf_buffer_;
   tf2_ros::TransformListener    tf_listener_;
-  ros::Time last_tf_stamp_;
 
+  // EKF state [x, y, θ, v, ω]
+  Eigen::Matrix<double,5,1> state_;
+  Eigen::Matrix<double,5,5> cov_;
 
-  // --------------------------------
-  //  EKF state (5×1) and covariance (5×5)
-  //    [ x,    y,    θ,    v,    ω ]ᵀ
-  // --------------------------------
-  Eigen::Matrix<double,5,1>   state_;
-  Eigen::Matrix<double,5,5>   cov_;
+  // Noise matrices
+  Eigen::Matrix<double,5,5> Q_;
+  Eigen::Matrix2d           R_odom_;
+  double                    R_imu_;
+  Eigen::Matrix2d           R_vis_;
 
-  // --------------------------------
-  //  Noise matrices
-  // --------------------------------
-  Eigen::Matrix<double,5,5> Q_;       // Process noise (5×5)
-  Eigen::Matrix2d           R_odom_;  // Odometry measurement noise (2×2)
-  double                    R_imu_;   // IMU yaw noise (scalar)
-  Eigen::Matrix2d           R_vis_;   // Vision (landmark) noise (2×2)
+  // Initialization & timing
+  bool      initialized_;
+  ros::Time last_odom_time_;
+  ros::Time last_tf_stamp_;  // to suppress redundant TF
 
-  // --------------------------------
-  //  Buffers & initialization flag
-  // --------------------------------
-  bool            initialized_;        // Set true after ground-truth init
-  ros::Time       last_odom_time_;     // Timestamp of last odometry
-
-  // --------------------------------
-  //  Landmark storage
-  // --------------------------------
+  // Landmarks in map frame
   struct Landmark { std::string cls; Eigen::Vector2d pos; };
-  std::vector<Landmark>       landmarks_;
+  std::vector<Landmark> landmarks_;
 
-  // --------------------------------
-  //  Buffers for vision pairing
-  // --------------------------------
+  // Buffers for vision measurements
   std::vector<geometry_msgs::Pose> latest_poses_;
   std::vector<std::string>         latest_labels_;
 
-  // --------------------------------
-  //  Path message for publishing trajectory
-  // --------------------------------
+  // Path message
   nav_msgs::Path path_msg_;
 
-  // ====================
-  //  CALLBACKS
-  // ====================
+  // -------- CALLBACKS --------
 
-  // 1) Ground-truth callback: initialize EKF using first message
+  // 1) Ground truth callback for one-shot init
   void groundTruthCallback(const nav_msgs::Path::ConstPtr& path_msg) {
     if (initialized_ || path_msg->poses.empty()) return;
-
-    // Take the first pose in the path as initial state
     const auto& p0 = path_msg->poses.front().pose;
     state_(0) = p0.position.x;
     state_(1) = p0.position.y;
-
     tf2::Quaternion q(p0.orientation.x,
                       p0.orientation.y,
                       p0.orientation.z,
@@ -170,93 +143,73 @@ private:
     double roll, pitch, yaw;
     tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
     state_(2) = yaw;
-
-    // Initialize v and ω to zero (or small)
     state_(3) = 0.0;
     state_(4) = 0.0;
-
     last_odom_time_ = path_msg->poses.front().header.stamp;
     initialized_ = true;
-    ROS_INFO("EKF initialized: x=%.3f y=%.3f θ=%.3f",
+    ROS_INFO("[EKF] Initialized from ground truth: x=%.3f y=%.3f θ=%.3f",
              state_(0), state_(1), state_(2));
-
-    sub_gt_path_.shutdown();  // No longer need ground-truth
+    // No further ground-truth needed
+    sub_gt_path_.shutdown();
   }
 
-  // 2) Odometry callback: predict + odom measurement update
+  // 2) Odometry callback: predict + measurement update (v, ω)
   void odomCallback(const nav_msgs::Odometry::ConstPtr& odom_msg) {
     if (!initialized_) return;
-
-    // 2a) Extract raw (v, ω) from wheel encoder plugin
     double v_raw = odom_msg->twist.twist.linear.x;
     double w_raw = odom_msg->twist.twist.angular.z;
     ros::Time t = odom_msg->header.stamp;
-
-    // 2b) Compute dt and run predict step using internal (v, ω)
     double dt = last_odom_time_.isZero() ? 0.0 : (t - last_odom_time_).toSec();
     last_odom_time_ = t;
-    if (dt > 0.0) predict(dt);
-
-    // 2c) Build measurement update for v, ω
-    // H_odom (2×5): picks out v and ω from state: [ x,y,θ,v,ω ]
-    Eigen::Matrix<double,2,5> H_odom = Eigen::Matrix<double,2,5>::Zero();
-    H_odom(0,3) = 1.0;  // measurement v = state_[3]
-    H_odom(1,4) = 1.0;  // measurement ω = state_[4]
-
-    Eigen::Vector2d z_odom(v_raw, w_raw);
-    Eigen::Vector2d z_hat = H_odom * state_;
-    Eigen::Vector2d y = z_odom - z_hat;                 // Innovation
-
-    Eigen::Matrix2d S = H_odom * cov_ * H_odom.transpose() + R_odom_;
-    Eigen::Matrix<double,5,2> K = cov_ * H_odom.transpose() * S.inverse();
-    state_ += K * y;
-    cov_   = (Eigen::Matrix<double,5,5>::Identity() - K * H_odom) * cov_;
-
-    // 2d) Publish fused result after odometry update
+    if (dt > 0.0) {
+      predict(dt);
+      ROS_DEBUG("[EKF] Predict step dt=%.4f: state before predict x=%.3f y=%.3f θ=%.3f", dt, state_(0), state_(1), state_(2));
+    }
+    // Measurement update for v and ω
+    Eigen::Matrix<double,2,5> H;
+    H.setZero();
+    H(0,3) = 1.0;
+    H(1,4) = 1.0;
+    Eigen::Vector2d z(v_raw, w_raw);
+    Eigen::Vector2d z_hat = H * state_;
+    Eigen::Vector2d innov = z - z_hat;
+    Eigen::Matrix2d S = H * cov_ * H.transpose() + R_odom_;
+    Eigen::Matrix<double,5,2> K = cov_ * H.transpose() * S.inverse();
+    state_ += K * innov;
+    cov_ = (Eigen::Matrix<double,5,5>::Identity() - K * H) * cov_;
+    ROS_DEBUG("[EKF] Odometry update: v=%.3f w=%.3f, innov=(%.3f,%.3f)", v_raw, w_raw, innov.x(), innov.y());
     publishFused(t);
   }
 
   // 3) IMU callback: yaw measurement update
   void imuCallback(const utils_ros::IMU::ConstPtr& imu_msg) {
     if (!initialized_) return;
-
     double meas_yaw = imu_msg->yaw;
-    ros::Time t = ros::Time::now(); // or imu_msg->header.stamp if available
-
-    // Build H_imu (1×5) that picks out θ
-    Eigen::Matrix<double,1,5> H_imu = Eigen::Matrix<double,1,5>::Zero();
-    H_imu(0,2) = 1.0;
-
+    ros::Time t = ros::Time::now();
+    // H picks out θ
+    Eigen::Matrix<double,1,5> H;
+    H.setZero();
+    H(0,2) = 1.0;
     double z = meas_yaw;
     double z_hat = state_(2);
     double innov = normalizeAngle(z - z_hat);
-
-    double S = (H_imu * cov_ * H_imu.transpose())(0,0) + R_imu_;
-    Eigen::Matrix<double,5,1> K = cov_ * H_imu.transpose() / S;
-
+    double S = (H * cov_ * H.transpose())(0,0) + R_imu_;
+    Eigen::Matrix<double,5,1> K = cov_ * H.transpose() / S;
     state_ += K * innov;
-    state_(2) = normalizeAngle(state_(2)); // Normalize yaw
-    cov_ = (Eigen::Matrix<double,5,5>::Identity() - K * H_imu) * cov_;
-
+    state_(2) = normalizeAngle(state_(2));
+    cov_ = (Eigen::Matrix<double,5,5>::Identity() - K * H) * cov_;
+    ROS_DEBUG("[EKF] IMU update: yaw=%.3f, innov=%.3f", meas_yaw, innov);
     publishFused(t);
   }
 
-  // 4) Vision pose callback: buffer measured PoseArray → robot frame
+  // 4) Vision pose callback: buffer poses in robot frame
   void visionCallback(const geometry_msgs::PoseArray::ConstPtr& poses_msg) {
     if (!initialized_) return;
-
     latest_poses_.clear();
-    geometry_msgs::PoseStamped in, out;
-    in.header = poses_msg->header;
-    in.header.frame_id = "camera::link_camera";
-
-    // Transform each detected sign pose to chassis::link frame
+    // Expect PoseArray poses already in chassis::link frame
     for (const auto& p : poses_msg->poses) {
-      in.pose = p;
-      tf_buffer_.transform(in, out, "chassis::link");
-      latest_poses_.push_back(out.pose);
+      latest_poses_.push_back(p);
     }
-
     tryFuseVision();
   }
 
@@ -266,107 +219,119 @@ private:
     tryFuseVision();
   }
 
-  // Attempt to fuse vision if both poses & labels are available
+  // Check if we have matched poses & labels, then fuse
   void tryFuseVision() {
-    if (latest_poses_.size() != latest_labels_.size() || latest_poses_.empty()) {
-      ROS_WARN_STREAM_THROTTLE(2.0, "[EKF] Vision: pose/label size mismatch or empty. poses=" << latest_poses_.size() << " labels=" << latest_labels_.size());
+    if (latest_poses_.empty() || latest_poses_.size() != latest_labels_.size()) {
+      ROS_DEBUG_THROTTLE(2.0, "[EKF] Vision: pose/label size mismatch or empty (poses=%zu labels=%zu).",
+                         latest_poses_.size(), latest_labels_.size());
       return;
     }
-    ROS_INFO_STREAM("[EKF] Vision: Fusing " << latest_poses_.size() << " detections.");
-
-    // Build 2D measurement vector
+    ROS_INFO("[EKF] Vision: Fusing %zu detections.", latest_poses_.size());
+    // Build 2D measurement vectors (robot frame)
     std::vector<Eigen::Vector2d> meas;
     meas.reserve(latest_poses_.size());
-    for (const auto& p : latest_poses_)
+    for (const auto& p : latest_poses_) {
       meas.emplace_back(p.position.x, p.position.y);
-
-
-    ROS_WARN_STREAM_THROTTLE(2.0, "CALLED updateVision with " << meas.size() << " measurements and " << latest_labels_.size() << " labels.");
-
-    updateVision(meas, latest_labels_, ros::Time::now());
-
+      ROS_DEBUG_STREAM("[EKF] Vision raw m (robot frame) = (" << p.position.x << ", " << p.position.y << ")");
+    }
+    // Use current time for fusion timestamp
+    ros::Time t = ros::Time::now();
+    updateVision(meas, latest_labels_, t);
     latest_poses_.clear();
     latest_labels_.clear();
   }
 
-  // 6) VK: Vision update step (landmark association & EKF correction)
-  void updateVision(const std::vector<Eigen::Vector2d>& meas,
+void updateVision(const std::vector<Eigen::Vector2d>& meas,
                   const std::vector<std::string>& labels,
                   const ros::Time& t)
 {
-    ROS_WARN_STREAM_THROTTLE(2.0, "INSIDE updateVision with " << meas.size() << " measurements and " << latest_labels_.size() << " labels.");
+  for (size_t i = 0; i < meas.size(); ++i) {
+    const auto& m = meas[i];          // detection in robot (chassis) frame
+    const auto& cls = labels[i];      // class string
+    ROS_DEBUG_STREAM("[EKF] Vision: class=" << cls << " measurement m=" << m.transpose());
 
-    for (size_t i = 0; i < meas.size(); ++i) {
-        const auto& m   = meas[i];
-        const auto& cls = labels[i];
-        ROS_INFO_STREAM("[EKF] Vision: class=" << cls << " m=" << m.transpose());
+    // Transform m into map frame using current state
+    double th = state_(2);
+    double cos_th = std::cos(th), sin_th = std::sin(th);
+    Eigen::Vector2d robot_pos(state_(0), state_(1));
+    Eigen::Vector2d m_map;
+    m_map.x() = robot_pos.x() + cos_th * m.x() - sin_th * m.y();
+    m_map.y() = robot_pos.y() + sin_th * m.x() + cos_th * m.y();
+    ROS_DEBUG_STREAM("[EKF] Vision: m_map = " << m_map.transpose());
 
+    // Mahalanobis gating for association
+    double best_maha = std::numeric_limits<double>::infinity();
+    Eigen::Vector2d L;
+    Eigen::Matrix2d best_S = Eigen::Matrix2d::Zero();
+    Eigen::Vector2d best_innov;
 
-        // Associate with nearest landmark of matching class
-        double best_d = 1e9;
-        Eigen::Vector2d L;
-        for (const auto& lm : landmarks_) {
-            if (lm.cls != cls) continue;
-            double d = (lm.pos - m).norm();
-            ROS_INFO_STREAM("  Compare to landmark " << lm.cls << " at " << lm.pos.transpose() << " d=" << d);
+    for (const auto& lm : landmarks_) {
+      if (lm.cls != cls) continue;
+      Eigen::Vector2d innov_map = m_map - lm.pos;
 
-            if (d < best_d) {
-                best_d = d;
-                L = lm.pos;
-            }
-        }
-        ROS_INFO_STREAM("[EKF] Vision: best_d=" << best_d << " for class=" << cls);
-        
-        if (best_d > 7) {
-            ROS_WARN_STREAM("[EKF] Vision: No landmark match for class " << cls << " at " << m.transpose() << " (closest " << best_d << " m)");
-            continue;
-        }       
+      // Innovation covariance S = R_vis_ (since measurement in map frame, no state uncertainty)
+      // If you want to include state covariance, transform cov_ to map frame and add here.
+      Eigen::Matrix2d S = R_vis_;
 
-        ROS_INFO_STREAM("[EKF] Vision: Updating with class " << cls << " at " << m.transpose() << " matched to landmark " << L.transpose() << " (dist " << best_d << " m)");
+      double maha = innov_map.transpose() * S.inverse() * innov_map;
+      ROS_DEBUG_STREAM("[EKF] Mahalanobis d^2 to lm " << lm.pos.transpose() << " = " << maha);
 
-        // Compute predicted measurement: transform landmark into robot frame
-        double th = state_(2);
-        Eigen::Rotation2Dd R(-th);
-        Eigen::Vector2d p_hat = R * (L - state_.head<2>());
-
-        Eigen::Vector2d innov = m - p_hat; // Innovation in chassis frame
-
-        // Build H_vis (2×5) Jacobian with respect to [x,y,θ,v,ω]
-        Eigen::Matrix<double,2,5> H_vis = Eigen::Matrix<double,2,5>::Zero();
-        double lx = L.x(), ly = L.y();
-        double rx = state_(0), ry = state_(1);
-        double dx = lx - rx, dy = ly - ry;
-
-        H_vis(0,0) = -cos(th);
-        H_vis(0,1) = -sin(th);
-        H_vis(0,2) =  dx * (-sin(th)) + dy * (-cos(th));
-        H_vis(1,0) =  sin(th);
-        H_vis(1,1) = -cos(th);
-        H_vis(1,2) =  dx * ( cos(th)) + dy * (-sin(th));
-
-        Eigen::Matrix2d S = H_vis * cov_ * H_vis.transpose() + R_vis_;
-        Eigen::Matrix<double,5,2> K = cov_ * H_vis.transpose() * S.inverse();
-
-        ROS_INFO_STREAM("[EKF] Vision: Innovation = " << innov.transpose());
-        ROS_INFO_STREAM("[EKF] Vision: Kalman gain (first row) = " << K.row(0));
-        ROS_INFO_STREAM("[EKF] Vision: m (measured) = " << m.transpose());
-        ROS_INFO_STREAM("[EKF] Vision: L (landmark) = " << L.transpose());
-        ROS_INFO_STREAM("[EKF] Vision: p_hat (predicted) = " << p_hat.transpose());
-
-
-        // State update
-        state_ += K * innov;
-        state_(2) = normalizeAngle(state_(2));
-        cov_ = (Eigen::Matrix<double,5,5>::Identity() - K * H_vis) * cov_;
+      if (maha < best_maha) {
+        best_maha = maha;
+        L = lm.pos;
+        best_S = S;
+        best_innov = innov_map;
+      }
     }
 
-    publishFused(t);
-}
+    // Mahalanobis threshold for 2D, 99% confidence: ~9.21
+    const double MAHA_THRESHOLD = 9.21;
+    if (best_maha > MAHA_THRESHOLD) {
+      ROS_WARN_STREAM("[EKF] Vision: No landmark match for class " << cls
+                      << " at global " << m_map.transpose()
+                      << " (closest Mahalanobis d^2 " << best_maha << ")");
+      continue;
+    }
+    ROS_INFO_STREAM("[EKF] Vision: Matched class " << cls
+                    << " global=" << m_map.transpose()
+                    << " to landmark " << L.transpose()
+                    << " (Mahalanobis d^2=" << best_maha << ")");
 
-  // ====================
-  //  EKF PREDICTION
-  // ====================
-  // Constant‐velocity/turn‐rate motion model
+    // Predicted measurement in robot frame: p_hat = R(-θ)*(L - robot_pos)
+    Eigen::Vector2d delta = L - robot_pos;
+    Eigen::Vector2d p_hat;
+    p_hat.x() =  cos_th * delta.x() + sin_th * delta.y();
+    p_hat.y() = -sin_th * delta.x() + cos_th * delta.y();
+    Eigen::Vector2d innov = m - p_hat;
+    ROS_DEBUG_STREAM("[EKF] Vision: innov (robot frame) = " << innov.transpose());
+
+    // Build Jacobian H_vis (2x5)
+    Eigen::Matrix<double,2,5> H_vis = Eigen::Matrix<double,2,5>::Zero();
+    H_vis(0,0) = -cos_th;  H_vis(0,1) = -sin_th;
+    H_vis(1,0) =  sin_th;  H_vis(1,1) = -cos_th;
+    double dx = L.x() - robot_pos.x();
+    double dy = L.y() - robot_pos.y();
+    H_vis(0,2) = dx * (-sin_th) + dy * (-cos_th);
+    H_vis(1,2) = dx * ( cos_th) + dy * (-sin_th);
+
+    Eigen::Matrix2d S = H_vis * cov_ * H_vis.transpose() + R_vis_;
+    Eigen::Matrix<double,5,2> K = cov_ * H_vis.transpose() * S.inverse();
+
+    ROS_INFO_STREAM("[EKF] Vision: Innovation = " << innov.transpose());
+    ROS_INFO_STREAM("[EKF] Vision: Kalman gain (first row) = " << K.row(0));
+    ROS_INFO_STREAM("[EKF] Vision: m (measured) = " << m.transpose());
+    ROS_INFO_STREAM("[EKF] Vision: L (landmark) = " << L.transpose());
+    ROS_INFO_STREAM("[EKF] Vision: p_hat (predicted) = " << p_hat.transpose());
+
+    // State update
+    state_ += K * innov;
+    state_(2) = normalizeAngle(state_(2));
+    cov_ = (Eigen::Matrix<double,5,5>::Identity() - K * H_vis) * cov_;
+    ROS_INFO_STREAM("[EKF] Vision: Updated state x=" << state_(0) << " y=" << state_(1) << " θ=" << state_(2));
+  }
+  publishFused(t);
+
+  // -------- EKF PREDICTION --------
   void predict(double dt) {
     double x  = state_(0);
     double y  = state_(1);
@@ -374,124 +339,111 @@ private:
     double v  = state_(3);
     double w  = state_(4);
 
-    // 1) Nonlinear state propagation
-    state_(0) += v * cos(th) * dt;
-    state_(1) += v * sin(th) * dt;
-    state_(2) += w * dt;          // θₖ₊₁ = θₖ + wₖ * dt
-    // v and w remain same (constant) – process noise will nudge them
+    // Nonlinear propagation
+    state_(0) += v * std::cos(th) * dt;
+    state_(1) += v * std::sin(th) * dt;
+    state_(2) += w * dt;
+    // v, w unchanged (process noise will affect covariance)
 
-    // 2) Build Jacobian F (5×5)
+    // Jacobian F
     Eigen::Matrix<double,5,5> F = Eigen::Matrix<double,5,5>::Identity();
-    F(0,2) = -v * sin(th) * dt;   // ∂x/∂θ
-    F(0,3) =  cos(th) * dt;       // ∂x/∂v
-    F(1,2) =  v * cos(th) * dt;   // ∂y/∂θ
-    F(1,3) =  sin(th) * dt;       // ∂y/∂v
-    F(2,4) =  dt;                 // ∂θ/∂ω
-    // F(3,3)=1, F(4,4)=1 by Identity()
+    F(0,2) = -v * std::sin(th) * dt;
+    F(0,3) =  std::cos(th) * dt;
+    F(1,2) =  v * std::cos(th) * dt;
+    F(1,3) =  std::sin(th) * dt;
+    F(2,4) =  dt;
 
-    // 3) Covariance propagation: P = F P Fᵀ + Q
+    // Covariance propagation
     cov_ = F * cov_ * F.transpose() + Q_;
   }
 
-  // ====================
-  //  PUBLISH RESULTS
-  // ====================
+  // -------- PUBLISH RESULTS --------
   void publishFused(const ros::Time& t) {
+    // Suppress redundant TF if same timestamp
     if (t == last_tf_stamp_) return;
     last_tf_stamp_ = t;
+
     // 1) Broadcast TF “map → chassis::link”
-    geometry_msgs::TransformStamped tf;
-    tf.header.stamp    = t;
-    tf.header.frame_id = "map";
-    tf.child_frame_id  = "chassis::link";
-    tf.transform.translation.x = state_(0);
-    tf.transform.translation.y = state_(1);
-    tf.transform.translation.z = 0.0;
+    geometry_msgs::TransformStamped tf_msg;
+    tf_msg.header.stamp    = t;
+    tf_msg.header.frame_id = "map";
+    tf_msg.child_frame_id  = "chassis::link";
+    tf_msg.transform.translation.x = state_(0);
+    tf_msg.transform.translation.y = state_(1);
+    tf_msg.transform.translation.z = 0.0;
     tf2::Quaternion q;
     q.setRPY(0.0, 0.0, state_(2));
-    tf.transform.rotation.x = q.x();
-    tf.transform.rotation.y = q.y();
-    tf.transform.rotation.z = q.z();
-    tf.transform.rotation.w = q.w();
-    tf_broadcaster_.sendTransform(tf);
+    tf_msg.transform.rotation.x = q.x();
+    tf_msg.transform.rotation.y = q.y();
+    tf_msg.transform.rotation.z = q.z();
+    tf_msg.transform.rotation.w = q.w();
+    tf_broadcaster_.sendTransform(tf_msg);
 
-    // 2) Publish Odometry
+    // 2) Publish fused Odometry
     nav_msgs::Odometry odo;
     odo.header.stamp    = t;
     odo.header.frame_id = "map";
     odo.child_frame_id  = "chassis::link";
-
     odo.pose.pose.position.x = state_(0);
     odo.pose.pose.position.y = state_(1);
     odo.pose.pose.position.z = 0.0;
-    odo.pose.pose.orientation = tf.transform.rotation;
-
+    odo.pose.pose.orientation = tf_msg.transform.rotation;
     pub_odom_fused_.publish(odo);
 
     // 3) Append to Path and publish
     geometry_msgs::PoseStamped ps;
     ps.header = odo.header;
     ps.pose   = odo.pose.pose;
-    path_msg_.header.stamp = t;  // or = odo.header.stamp
-
+    path_msg_.header.stamp = t;
     path_msg_.poses.push_back(ps);
     pub_path_.publish(path_msg_);
   }
 
-  // ====================
-  //  UTILITY FUNCTIONS
-  // ====================
+  // Normalize angle to [-π, π]
   double normalizeAngle(double a) {
     while (a > M_PI)  a -= 2.0 * M_PI;
     while (a < -M_PI) a += 2.0 * M_PI;
     return a;
   }
 
-  // Load hardcoded map landmarks
+  // Load hardcoded landmarks
   void loadLandmarks() {
     // Crosswalk
-    landmarks_.push_back({"crosswalk", {7.312, -3.240}}); //CWALK_K
-    landmarks_.push_back({"crosswalk", {6.627, -4.181}}); //CWALK_L
-    landmarks_.push_back({"crosswalk", {6.777, -1.456}}); //CWALK_M
-    landmarks_.push_back({"crosswalk", {6.130, -2.342}}); //CWALK_N
-    landmarks_.push_back({"crosswalk", {1.109, -12.486}}); //CWALK_O
-    landmarks_.push_back({"crosswalk", {0.195, -11.869}}); //CWALK_P
-
+    landmarks_.push_back({"crosswalk", {7.312, -3.240}});
+    landmarks_.push_back({"crosswalk", {6.627, -4.181}});
+    landmarks_.push_back({"crosswalk", {6.777, -1.456}});
+    landmarks_.push_back({"crosswalk", {6.130, -2.342}});
+    landmarks_.push_back({"crosswalk", {1.109, -12.486}});
+    landmarks_.push_back({"crosswalk", {0.195, -11.869}});
     // Enter‐highway
-    landmarks_.push_back({"enterhighway", {5.871, -13.970}}); //EHIGH_T
-    landmarks_.push_back({"enterhighway", {9.412, -4.850}}); //EHIGH_Y
-
+    landmarks_.push_back({"enterhighway", {5.871, -13.970}});
+    landmarks_.push_back({"enterhighway", {9.412, -4.850}});
     // Leave‐highway
-    landmarks_.push_back({"leavehighway", {10.686, -6.276}}); //LHIGH_U
-    landmarks_.push_back({"leavehighway", {6.520, -12.700}}); //LHIGH_Z
-    landmarks_.push_back({"leavehighway", {8.458, -14.359}}); //LHIGH_H
-
+    landmarks_.push_back({"leavehighway", {10.686, -6.276}});
+    landmarks_.push_back({"leavehighway", {6.520, -12.700}});
+    landmarks_.push_back({"leavehighway", {8.458, -14.359}});
     // Oneway
-    landmarks_.push_back({"oneway", {3.341, -9.821}}); //ONEWAY_J
-    landmarks_.push_back({"oneway", {2.406, -9.821}}); //ONEWAY_B
-    landmarks_.push_back({"oneway", {9.196, -14.375}}); //ONEWAY_E
-
+    landmarks_.push_back({"oneway", {3.341, -9.821}});
+    landmarks_.push_back({"oneway", {2.406, -9.821}});
+    landmarks_.push_back({"oneway", {9.196, -14.375}});
     // Parking
-    landmarks_.push_back({"parking", {4.047, -2.358}}); //PRK_P1
-    landmarks_.push_back({"parking", {2.857, -2.358}}); //PRK_P2
-    landmarks_.push_back({"parking", {2.779, -1.452}}); //PRK_P3
-    landmarks_.push_back({"parking", {4.459, -1.452}}); //PRK_P4
-
+    landmarks_.push_back({"parking", {4.047, -2.358}});
+    landmarks_.push_back({"parking", {2.857, -2.358}});
+    landmarks_.push_back({"parking", {2.779, -1.452}});
+    landmarks_.push_back({"parking", {4.459, -1.452}});
     // Priority
-    landmarks_.push_back({"priority", {3.675, -13.050}}); //PRIOR_D
-    landmarks_.push_back({"priority", {0.204, -6.031}}); //PRIOR_F
-    landmarks_.push_back({"priority", {5.544, -11.381}}); //PRIOR_H
-    landmarks_.push_back({"priority", {4.589, -5.997}});  //PRIOR_I
-
+    landmarks_.push_back({"priority", {3.675, -13.050}});
+    landmarks_.push_back({"priority", {0.204, -6.031}});
+    landmarks_.push_back({"priority", {5.544, -11.381}});
+    landmarks_.push_back({"priority", {4.589, -5.997}});
     // Prohibited
-    landmarks_.push_back({"prohibited", {3.323, -7.581}}); //DENY_V
-    landmarks_.push_back({"prohibited", {2.387, -7.581}}); //DENY_X
-    landmarks_.push_back({"prohibited", {11.578, -4.504}}); //DENY_G
-
+    landmarks_.push_back({"prohibited", {3.323, -7.581}});
+    landmarks_.push_back({"prohibited", {2.387, -7.581}});
+    landmarks_.push_back({"prohibited", {11.578, -4.504}});
     // Roundabout
-    landmarks_.push_back({"roundabout", {8.766, -4.179}}); //GIR_Q
-    landmarks_.push_back({"roundabout", {10.320, -4.869}}); //GIR_R
-    landmarks_.push_back({"roundabout", {11.015, -3.297}}); //GIR_S
+    landmarks_.push_back({"roundabout", {8.766, -4.179}});
+    landmarks_.push_back({"roundabout", {10.320, -4.869}});
+    landmarks_.push_back({"roundabout", {11.015, -3.297}});
   }
 };
 
