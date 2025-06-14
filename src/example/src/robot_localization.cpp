@@ -49,8 +49,8 @@ public:
 
     // 2) Process noise Q: small acceleration noises
     Q_ = Eigen::Matrix<double,5,5>::Zero();
-    Q_(3,3) = 2.5e-3; // variance for v-acceleration noise
-    Q_(4,4) = 4e-4;   // variance for yaw-acceleration noise
+    Q_(3,3) = 0.25; // variance for v-acceleration noise, originally 2.5e-3 = 0.0025
+    Q_(4,4) = 0.04;   // variance for yaw-acceleration noise, originally 4e-4 = 0.0004
 
     // 3) Measurement noise: use inflated (worst) values here
     //    Optimal (from characterization) would be:
@@ -59,10 +59,10 @@ public:
     //      R_imu_       ≈ 7.3527e-02  (variance for yaw)
     //    Here we inflate them to degrade performance:
     R_odom_ = Eigen::Matrix2d::Zero();
-    R_odom_(0,0) = 0.5;   // inflated variance for v (much larger than optimal ~0.0095)
-    R_odom_(1,1) = 1.0;   // inflated variance for ω (much larger than optimal ~0.096)
+    R_odom_(0,0) = 0.1;   // inflated variance for v (larger than optimal ~0.0095)
+    R_odom_(1,1) = 0.1;   // inflated variance for ω (larger than optimal ~0.096)
 
-    R_imu_ = 2.0;         // inflated yaw variance (optimal ~0.0735)
+    R_imu_ = 1;         // inflated yaw variance (optimal ~0.0735)
 
     // 4) ROS subscribers & publishers
     sub_odom_   = nh_.subscribe("/automobile/wheel_encoder/odometry",
@@ -136,7 +136,9 @@ private:
   void odomCallback(const nav_msgs::Odometry::ConstPtr& odom_msg) {
     if (!initialized_) return;
     double v_raw = odom_msg->twist.twist.linear.x;
+    v_raw += 0.0025; // simulate bias +0.0025 m/s
     double w_raw = odom_msg->twist.twist.angular.z;
+    w_raw += 0.0025; // simulate bias +0.0025 rad/s
     ros::Time t = odom_msg->header.stamp;
 
     // Compute dt for predict
@@ -169,7 +171,7 @@ private:
   // 3) IMU callback: yaw measurement update
   void imuCallback(const utils_ros::IMU::ConstPtr& imu_msg) {
     if (!initialized_) return;
-    double meas_yaw = imu_msg->yaw;
+    double meas_yaw = imu_msg->yaw + 0.025; // simulate bias +0.025 rad
     ros::Time t = ros::Time::now();  // or imu_msg header if available
 
     // H picks out θ
