@@ -40,7 +40,7 @@ Visualization Manager:
       Color: 160; 160; 164
       Enabled: false
       Line Style:
-        Line Width: 0.029999999329447746
+        Line Width: 0.5
         Value: Lines
       Name: Grid
       Normal Cell Count: 0
@@ -65,13 +65,13 @@ Visualization Manager:
     - Alpha: 1
       Buffer Length: 1
       Class: rviz/Path
-      Color: 25; 255; 0
+      Color: 33; 196; 0
       Enabled: true
       Head Diameter: 0.30000001192092896
       Head Length: 0.20000000298023224
       Length: 0.30000001192092896
       Line Style: Lines
-      Line Width: 0.029999999329447746
+      Line Width: 1
       Name: Ground Truth Path
       Offset:
         X: 0
@@ -89,13 +89,13 @@ Visualization Manager:
     - Alpha: 1
       Buffer Length: 1
       Class: rviz/Path
-      Color: 255; 255; 0
+      Color: 0; 114; 229
       Enabled: true
       Head Diameter: 0.30000001192092896
       Head Length: 0.20000000298023224
       Length: 0.30000001192092896
       Line Style: Lines
-      Line Width: 0.029999999329447746
+      Line Width: 1
       Name: EKF Path
       Offset:
         X: 0
@@ -113,13 +113,13 @@ Visualization Manager:
     - Alpha: 1
       Buffer Length: 1
       Class: rviz/Path
-      Color: 255; 0; 0
+      Color: 255; 20; 20
       Enabled: true
       Head Diameter: 0.30000001192092896
       Head Length: 0.20000000298023224
       Length: 0.30000001192092896
       Line Style: Lines
-      Line Width: 0.029999999329447746
+      Line Width: 1
       Name: robot_localization Path
       Offset:
         X: 0
