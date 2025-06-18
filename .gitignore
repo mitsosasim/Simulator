@@ -5,3 +5,4 @@ build/
 src/CMakeLists.txt
 **/*.pyc
 drive.avi
+frames/
