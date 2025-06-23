@@ -43,6 +43,7 @@ A ROS/Gazebo-based simulator and perception/control stack for an Ackermann‐ste
 ### System Dependencies
 
 ```bash
+# Install system dependencies
 sudo apt update
 sudo apt install -y \
   ros-noetic-ros-base \
@@ -60,8 +61,11 @@ sudo apt install -y \
   ros-noetic-gazebo-ros \
   python3-opencv \
   python3-pip
+
+# Install Python packages
 pip3 install numpy pandas matplotlib opencv-python
-# If using GPU for YOLOv5:
+
+# For GPU acceleration (optional)
 pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu113
 ```
 
