@@ -1,110 +1,69 @@
-# Architecture and experimental evidence
+# Architecture and results
 
-[Project overview](../README.md) · [Setup](SETUP.md) · [Original thesis materials](thesis/README.md)
-
-## Processing path
+[Project](../README.md) · [Setup](SETUP.md) · [Thesis](thesis/report.pdf) · [Presentation](thesis/presentation.pdf)
 
 ![Vision-aided localization data flow](images/architecture.svg)
 
-The diagram follows the active C++ fusion node and Python detector. The original [thesis](thesis/report.pdf) calls this system Visual-Inertial-Wheel Odometry (VIWO) and names the custom filter BB EKF, connecting it to Braking Bad. Its purpose is to correct accumulated dead-reckoning drift with intermittent observations of known signs. Its editable source is [architecture.dot](images/architecture.dot). Regenerate the SVG with:
+## Perception
 
-```bash
-dot -Tsvg docs/images/architecture.dot -o docs/images/architecture.svg
-```
+[`sign_detector_node.py`](../src/example/src/sign_detector_node.py) undistorts camera images and runs YOLOv5-Nano to detect eight traffic-sign classes. Color masks and shape checks identify contours within each detection. Known sign dimensions support Perspective-n-Point (PnP) pose estimation, with a pinhole depth estimate as a fallback.
 
-### Perception
+The node converts positions to meters and transforms them into the vehicle frame, `chassis::link`. A temporal distance check filters inconsistent same-class observations. It publishes sign poses and labels for fusion, along with an annotated camera image.
 
-[`sign_detector_node.py`](../src/example/src/sign_detector_node.py) subscribes to the car's image and camera calibration topics. It undistorts each image and runs the local YOLOv5 model. Within each detected region, color masks and shape checks select contours for sign geometry. Depending on shape, the node uses Perspective-n-Point (PnP), PnP with RANSAC, or geometric depth estimation. A pinhole calculation provides a fallback when PnP does not yield a translation.
-
-Physical sign dimensions are expressed in centimeters, then estimated positions are converted to meters. TF transforms observations into `chassis::link`. A temporal distance check compares same-class observations against the previous accepted frame. The node publishes poses, labels, an annotated image, and sign transforms. It also opens an OpenCV display window, so CPU inference alone does not make the current node headless.
-
-| Interface | Data |
+| Topic | Data |
 |---|---|
 | `/automobile/image_raw` | Camera image |
-| `/automobile/camera_info` | Camera intrinsics and distortion coefficients |
-| `/sign_detector/sign_poses` | `geometry_msgs/PoseArray` in `chassis::link` |
-| `/sign_detector/sign_labels` | `utils_ros/SignLabelArray` |
+| `/automobile/camera_info` | Camera calibration |
+| `/sign_detector/sign_poses` | Sign positions in the vehicle frame |
+| `/sign_detector/sign_labels` | Traffic-sign classes |
 | `/automobile/image_annotated` | Detection overlay |
 
-### Dataset and model context
+The thesis describes approximately 3,000 collected images, manual LabelImg annotations, an 80/20 training–validation split, and 640 × 640 model inputs. The repository includes a subset of 573 training and 144 validation images. The classes cover crosswalk, one-way, roundabout, no-entry, highway entry, parking, priority, and highway exit.
 
-Chapter 4 of the [thesis](thesis/report.pdf#page=16) identifies YOLOv5-Nano as the lightweight detector and describes manual LabelImg annotation for eight classes: crosswalk, one-way, roundabout, no-entry, highway entry, parking, priority, and highway exit. The design combines a semantic class with known physical sign dimensions, turning an image detection into a metric landmark observation.
+## Motion and sensor fusion
 
-The report describes approximately 3,000 collected images, an 80/20 train–validation split, and 640 × 640 model inputs. The current checkout contains 573 training and 144 validation images under `YOLOv5-traffic/images/`. Those counts describe different evidence: the report's training account and the subset actually available here. No checkpoint or training run logs accompany the archive, so the documentation does not treat the complete reported training experiment as reproduced.
+The [wheel encoder plugin](../src/plugins_pkgs/wheel_encoder_plugin/src/wheel_encoder_plugin.cpp) uses rear-wheel rotation, front-wheel steering, wheel radius, and wheelbase to compute Ackermann odometry. The vehicle model configures publication at 100 Hz. The simulated IMU supplies orientation at 10 Hz.
 
-### Motion and sensor fusion
+[`ekf_fusion_node.cpp`](../src/example/src/ekf_fusion_node.cpp) maintains five states:
 
-The [wheel encoder plugin](../src/plugins_pkgs/wheel_encoder_plugin/src/wheel_encoder_plugin.cpp) reads rear wheel and front steering joints, wheel radius, and wheelbase from SDF. It publishes linear velocity and yaw rate as ROS odometry. The [vehicle configuration](../src/models_pkg/rcCar_assembly_REC/model.sdf) requests 100 Hz publication. This is a configured rate, not a measured timing guarantee.
+`[x, y, yaw, speed, yaw rate]`
 
-[`ekf_fusion_node.cpp`](../src/example/src/ekf_fusion_node.cpp) maintains the state `x = [x, y, yaw, v, omega]`. Wheel messages trigger motion prediction and velocity updates. IMU messages update yaw with angle wrapping. The BNO055-named Gazebo plugin supplies simulator orientation at a configured 10 Hz, rather than integrating physical accelerometer or gyroscope samples. The thesis identifies this idealized orientation and the absence of wheel slip as simulation assumptions. Vision updates compare a measured sign position with the predicted position of a known landmark in the vehicle frame.
+Wheel messages trigger motion prediction and velocity updates. IMU messages update heading with angle wrapping. For each visual observation, the filter searches the known landmark map for signs of the same class, selects the smallest squared Mahalanobis distance, and rejects matches above `5.99`. Accepted observations correct the predicted position through the EKF measurement model.
 
-Association searches only landmarks with the same class label. The implementation selects the smallest squared Mahalanobis distance using the configured vision covariance and rejects matches above `5.99`. The subsequent EKF correction uses its measurement Jacobian and state covariance. The association gate itself does not use the full innovation covariance.
+Ground truth initializes the pose once. The filter then publishes `/ekf/odom`, `/ekf/path`, and the `map → chassis::link` transform.
 
-Ground truth seeds the first pose once, after which that subscription is shut down. The node publishes `/ekf/odom`, `/ekf/path`, and the `map → chassis::link` transform. The fixed landmark coordinates are part of the source, so changing the world requires reviewing the landmark map.
+## Evaluation
 
-### Comparison and evaluation
+[`ground_truth.py`](../src/example/src/ground_truth.py) converts Gazebo model states into the reference trajectory. [`characterize_sensors.py`](../src/example/src/characterize_sensors.py) compares wheel and IMU measurements with that reference to estimate noise.
 
-The active all-objects launch starts the repository's C++ executable named `robot_localization`. Despite that name, [`robot_localization.cpp`](../src/example/src/robot_localization.cpp) is a separate local five-state encoder/IMU filter. Its comments and constants explicitly inflate process and measurement noise. The separate [`robot_localization.py`](../src/example/src/robot_localization.py) integrates the external ROS package, but that node is commented out in the main launch.
+[`evaluation.py`](../src/example/src/evaluation.py) aligns recorded paths within 0.05 seconds, calculates position and wrapped yaw errors, and exports metrics and plots. Position error is the Euclidean 3D distance, although the filter models planar motion.
 
-[`ground_truth.py`](../src/example/src/ground_truth.py) converts Gazebo model states into a reference path. [`characterize_sensors.py`](../src/example/src/characterize_sensors.py) interpolates the reference trajectory, calculates encoder and yaw residuals, and reports filtered standard deviations and suggested measurement variances on shutdown.
+The comparison executable, [`robot_localization.cpp`](../src/example/src/robot_localization.cpp), is a local encoder/IMU filter with deliberately inflated noise settings. It is distinct from the upstream ROS `robot_localization` package.
 
-[`evaluation.py`](../src/example/src/evaluation.py) extracts the latest pose from each recorded path message, sorts and deduplicates timestamps, and aligns estimates to reference timestamps with a nearest-neighbor tolerance of 0.05 seconds. Position error is the Euclidean **3D** distance, even though filter motion is planar. Yaw error is the absolute wrapped angular difference. It saves RMSE, mean and maximum errors, trajectory plots, time series, histograms, and cumulative distributions.
+## Results
 
-## Experimental evidence
+The representative simulation run in [Chapter 9 of the thesis](thesis/report.pdf#page=54) reports:
 
-### Representative run reported in the thesis
+| Method | Position RMSE (m) | Position mean (m) | Yaw RMSE (rad) |
+|---|---:|---:|---:|
+| BB EKF with sign updates | 0.4658 | 0.4456 | 0.6129 |
+| Local encoder/IMU comparison | 0.5505 | 0.5181 | 0.6016 |
 
-Chapter 9, section 9.3 of the [original report](thesis/report.pdf#page=54) records the following simulation results. The presentation shows the corresponding trajectory and error plots. They are historical report values, not a new execution of the current checkout.
+Position RMSE improved by approximately 15%, with slightly higher yaw error. Different covariance settings limit attribution of the improvement to visual updates alone.
 
-| Reported method | Position RMSE (m) | Position mean (m) | Yaw RMSE (rad) | Yaw mean (rad) |
-|---|---:|---:|---:|---:|
-| BB EKF with sign updates | 0.4658 | 0.4456 | 0.6129 | 0.5115 |
-| Local encoder/IMU comparison | 0.5505 | 0.5181 | 0.6016 | 0.5042 |
+![Thesis trajectory comparison](images/thesis-trajectories.png)
 
-The thesis reports approximately 15% lower position RMSE and slightly higher yaw RMSE for this representative run. It also reports maximum BB EKF errors of 0.6734 m and 1.1775 rad. The heading tradeoff is part of the result and should accompany any discussion of positional improvement.
+*Thesis Figure 15: ground truth, BB EKF, and encoder/IMU trajectories aligned to their starting positions.*
 
-![Original thesis trajectory comparison aligned to each path's start](images/thesis-trajectories.png)
+The [repository CSV](../src/example/src/evaluation_plots/ekf_comparison_metrics.csv) contains a separate run, with position RMSE of 0.320 m for the vision-aided filter and 0.503 m for the comparison. Original rosbags and complete run configurations are not included.
 
-*Thesis Figure 15, PDF page 55. The displayed paths are aligned to their starting positions. The report's metrics and the figure retain their original experimental context.*
+## Design constraints
 
-### Separate result set in the repository CSV
+- **Known-map localization:** landmark coordinates are fixed, and ground truth supplies the initial pose.
+- **Simulation assumptions:** the IMU provides idealized orientation, and the experiment does not model wheel slip.
+- **Association timing:** sign poses and labels use separate buffers without timestamp synchronization.
+- **Integration:** model class names must match the landmark map. The main launch starts two filters that broadcast the same TF child, so use a single transform publisher when running them together.
 
-The following numbers are transcribed from the [tracked CSV](../src/example/src/evaluation_plots/ekf_comparison_metrics.csv). They are archived results, not measurements from the documentation update.
+## Credits
 
-| Saved method | Position RMSE (m) | Position mean (m) | Position max (m) | Yaw RMSE (rad) |
-|---|---:|---:|---:|---:|
-| Vision-aided custom EKF | 0.319693 | 0.315365 | 0.394961 | 0.371319 |
-| Local encoder/IMU comparison | 0.502602 | 0.499752 | 0.651688 | 0.380791 |
-
-![Archived position error time series for the two filters](../src/example/src/evaluation_plots/pos_error_over_time.png)
-
-The report and CSV contain distinct result sets and must not be merged into a single claimed experiment. The checked-out comparison filter deliberately has different noise settings, and the supplied materials do not include a complete configuration manifest for either run. These historical results therefore do **not** isolate the effect of vision, establish general superiority, or benchmark the upstream ROS `robot_localization` package. A controlled comparison would hold initialization, motion, timestamps, covariance tuning, and evaluation procedure fixed. The original rosbags and complete run manifests are absent, so neither historical result set can currently be regenerated from its original inputs. Existing plot legends retain the historical executable name.
-
-## Reproduction boundaries
-
-- **Initialization:** both C++ filters use an initial ground-truth pose. The experiment does not demonstrate global localization from an unknown pose.
-- **Map dependence:** sign positions are hardcoded. This is a known-map experiment, with no SLAM implementation implied.
-- **Labels:** `traffic.yaml` uses names such as `enter_highway` and `exit_highway`, while parts of the detector and landmark table use other spellings. Check the actual trained model's class names before a run. No matching weights are tracked.
-- **Timing:** vision poses and labels use separate buffers rather than timestamp synchronization. Treat association timing as an implementation constraint when interpreting results.
-- **Configuration:** the vision covariance is `0.1 * I` in code despite a nearby comment suggesting a different value. Both comparison filters also broadcast the same TF child, so simultaneous execution can produce competing transforms.
-- **Runtime:** the main launch opens Gazebo, RViz, and OpenCV windows and contains machine-specific paths. Current cloud validation covers ROS base and message packages, not the full simulator or perception stack.
-
-These observations document the current implementation. This branch does not change the algorithms or retune experiments.
-
-## Provenance and organization
-
-Dimitrios Asimakopoulos's thesis contribution is supported by the implementation and its development history: the wheel encoder plugin, sign pose estimator, fusion node, characterization tools, and evaluation workflow. The original thesis establishes the Department of Computer Science at the University of Crete, supervision by Prof. Panos Trahanias, and June 2025 authorship. Its acknowledgments credit CVRL/FORTH for resources and Michael Maravgakis for guidance. Braking Bad's BFMC semifinal result is team context supplied by the author. No competition year has been inferred from a track filename.
-
-The fork's initial history and [BSD 3-Clause license](../LICENSE) credit Bosch Future Mobility Challenge. Track assets, vehicle models, original control examples, sensor infrastructure, and other inherited simulator components retain their attribution. [Vendored YOLOv5](../YOLOv5-traffic/yolov5) retains its [license](../YOLOv5-traffic/yolov5/LICENSE). This thesis does not claim authorship of those dependencies.
-
-Documentation organization changes are deliberately limited:
-
-| Previous path | Current path | Reason |
-|---|---|---|
-| `sim_signs.mp4` | `docs/media/simulation-signs.mp4` | Group the existing simulation recording with demo instructions |
-| `frames.gv` | `docs/legacy/tf-frames.gv` | Retain the original TF snapshot as historical evidence |
-| `frames.pdf` | `docs/legacy/tf-frames.pdf` | Keep the exported TF snapshot beside its source |
-
-No runtime references to those three root assets were found before moving them. `frames/` contains image annotations and is retained as a data artifact. Competition models and launchers are retained because SDF and launch files refer to them. The README focuses the project without removing functional simulator assets or rewriting fork history.
-
-The supplied thesis PDF and slide archive are stored in [docs/thesis](thesis/README.md). The archive contains 25 JPEG slide exports. A reproducible assembly script embeds those exact images into the presentation PDF, while the supplied report remains unchanged. [Visual provenance](images/README.md) ties the new README figures to their report pages and presentation slide.
+Dimitrios Asimakopoulos developed the thesis localization work at the University of Crete, supervised by Prof. Panos Trahanias, with support from CVRL/FORTH and guidance from Michael Maravgakis. The BFMC simulator supplies the track, vehicle models, and simulator infrastructure. The detector uses [YOLOv5](../YOLOv5-traffic/yolov5), which retains its own license.
