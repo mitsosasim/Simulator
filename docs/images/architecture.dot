@@ -1,0 +1,21 @@
+digraph Localization {
+  graph [rankdir=TB, bgcolor="#ffffff", pad="0.30", nodesep="0.25", ranksep="0.48", fontname="DejaVu Sans", splines=polyline];
+  node [shape=box, style="rounded,filled", color="#bdcbd8", fillcolor="#f3f6f9", fontcolor="#142d43", fontname="DejaVu Sans", fontsize=14, margin="0.14,0.12", penwidth=1.2];
+  edge [color="#62788a", fontcolor="#42586b", fontname="DejaVu Sans", fontsize=11, arrowsize=0.7, penwidth=1.3];
+  sim [label="Gazebo simulation\nVehicle + track", fillcolor="#eaf0f5"];
+  vision [label="Sign pose estimation\nYOLOv5 + OpenCV", fillcolor="#e4f2ef", color="#82afa5"];
+  landmarks [label="Known landmarks\nSign classes + map"];
+  ground [label="Ground-truth path\nGazebo poses"];
+  ekf [label="Vision-aided EKF\nx · y · yaw · v · omega", fillcolor="#dcecf8", color="#77a6c8", penwidth=1.8];
+  paths [label="ROS outputs\nOdometry · path · TF"];
+  eval [label="Offline evaluation\nAlign paths · errors", fillcolor="#f8f0df", color="#c6ae77"];
+  sim -> vision [label="RGB +\nintrinsics"];
+  sim -> ekf [label="encoder +\nIMU"];
+  sim -> ground [label="model states"];
+  vision -> ekf [label="poses + labels"];
+  landmarks -> ekf [label="known signs"];
+  ground -> ekf [label="initial pose\n(one time)", style=dashed];
+  ekf -> paths [label="fused pose"];
+  paths -> eval [label="/ekf/path"];
+  ground -> eval [label="reference"];
+}

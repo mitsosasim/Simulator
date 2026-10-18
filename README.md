@@ -1,238 +1,87 @@
-```markdown
-# Simulator
+# Vision-Aided Vehicle Localization
 
-A ROS/Gazebo-based simulator and perception/control stack for an Ackermann‐steering RC car.
+A bachelor's thesis project that estimates an Ackermann vehicle's position by combining traffic sign observations, wheel odometry, and inertial measurements in a ROS/Gazebo simulation.
 
-## Features
+**Dimitrios Asimakopoulos · Computer Science BSc thesis · CVRL, FORTH · Supervisor: Prof. Trahanias**
 
-- **Sign Detection**: YOLOv5 + PnP pose estimation, color/contour filtering, and outlier rejection  
-- **Custom EKF Fusion**: Fuses wheel odometry, IMU, and sign-based landmark observations  
-- **Baseline EKF**: Fuses only wheel odometry + IMU  
-- **Sensor Characterization**: Estimate noise covariances from ground-truth  
-- **Offline Evaluation Scripts**: Compare trajectories vs. ground truth  
-- **ROS Nodes**: For control, visualization, logging, etc.  
-- **Gazebo Simulation Environment**: With map and objects  
+<table>
+  <tr>
+    <td width="50%"><a href="docs/images/simulation-camera.png"><img src="docs/images/simulation-camera.png" alt="Recorded Gazebo camera view of the road and traffic signs" width="100%"></a></td>
+    <td width="50%"><a href="src/example/src/evaluation_plots/trajectories.png"><img src="src/example/src/evaluation_plots/trajectories.png" alt="Archived plot of ground truth, vision-aided EKF, and local comparison trajectories" width="100%"></a></td>
+  </tr>
+  <tr>
+    <td><sub>Simulation camera frame from the repository's recording.</sub></td>
+    <td><sub>Archived trajectory comparison. See the experimental qualifications below.</sub></td>
+  </tr>
+</table>
 
----
+**C++ · Python · ROS Noetic · Gazebo 11 · Eigen · OpenCV · YOLOv5/PyTorch**
 
-## Table of Contents
+[Thesis & presentation](docs/thesis/README.md) · [Setup](docs/SETUP.md) · [Architecture & results](docs/ARCHITECTURE.md) · [Demo](docs/media/README.md)
 
-1. [Prerequisites](#prerequisites)
-2. [Installation & Build](#installation--build)
-3. [Running the Simulation](#running-the-simulation)
-4. [Sensor Characterization](#sensor-characterization)
-5. [Offline Evaluation](#offline-evaluation)
-6. [Launch Files & Node Responsibilities](#launch-files--node-responsibilities)
-7. [Repository Structure (Excerpt)](#repository-structure-excerpt)
-8. [Contributing](#contributing)
-9. [License](#license)
-10. [Contact](#contact)
+## From competition platform to thesis
 
----
+This work grew from FORTH's **Braking Bad** team and the **Bosch Future Mobility Challenge (BFMC)**, where the team reached the semifinals. The thesis focuses on perception and localization within that setting. This fork retains the competition simulator and its history while making the thesis contribution the entry point.
 
-## Prerequisites
+As the simulated car moves, camera images become labeled sign positions. A custom extended Kalman filter (EKF) combines these landmark observations with encoder velocity and IMU yaw to estimate the vehicle's pose. Recorded trajectories support comparison against simulator ground truth.
 
-- **OS**: Ubuntu 20.04 LTS  
-- **ROS**: Noetic  
-- **Gazebo**: Gazebo 11 (with ROS Noetic integration)  
-- **Python**: 3.x (ROS Noetic default)  
-- **C++**: C++14 (ROS Noetic toolchain)  
-- **CUDA/PyTorch** (optional): For GPU-accelerated YOLOv5 inference  
-- **Catkin Workspace**: A ROS catkin workspace (existing or new)  
+## My contribution
 
-### System Dependencies
+- Implemented traffic sign pose estimation using YOLOv5 detections, color and shape filtering, Perspective-n-Point geometry, and a pinhole fallback.
+- Integrated camera calibration, coordinate transformations, and temporal filtering to publish sign observations in the vehicle frame.
+- Developed a five-state C++ EKF with class-constrained landmark association and Mahalanobis gating for vision updates.
+- Implemented Ackermann wheel odometry as a Gazebo plugin using wheel rotation and steering geometry.
+- Built sensor characterization and offline trajectory evaluation tools, connecting covariance choices to measured residuals and localization error.
 
-```bash
-# Install system dependencies
-sudo apt update
-sudo apt install -y \
-  ros-noetic-ros-base \
-  ros-noetic-cv-bridge \
-  ros-noetic-image-transport \
-  ros-noetic-tf2-ros \
-  ros-noetic-tf2-geometry-msgs \
-  ros-noetic-nav-msgs \
-  ros-noetic-geometry-msgs \
-  ros-noetic-sensor-msgs \
-  ros-noetic-rosbag \
-  ros-noetic-roslaunch \
-  ros-noetic-rviz \
-  ros-noetic-robot-localization \
-  ros-noetic-gazebo-ros \
-  python3-opencv \
-  python3-pip
+The inherited track, vehicle models, and competition utilities remain credited to their original authors. Vendored YOLOv5 retains its own license and notices. The team result above provides context for the work, rather than a claim that this thesis stack was the competition vehicle's deployed system.
 
-# Install Python packages
-pip3 install numpy pandas matplotlib opencv-python
+## System at a glance
 
-# For GPU acceleration (optional)
-pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu113
-```
+![Data flow from Gazebo sensors through sign pose estimation and the EKF to trajectory evaluation](docs/images/architecture.svg)
 
----
+[Open the full diagram](docs/images/architecture.svg) · [Editable diagram source](docs/images/architecture.dot)
 
-## Installation & Build
+The filter estimates `[x, y, yaw, speed, yaw rate]` against a **known landmark map**. Ground truth supplies a one-time initial pose and the evaluation reference. This is localization in simulation, with no map-building claim.
 
-### Clone into a Catkin Workspace
+| Technology | Role |
+|---|---|
+| ROS Noetic / Catkin | Nodes, messages, transforms, and C++ builds |
+| Gazebo 11 / SDF | Vehicle dynamics, track, camera, and sensor plugins |
+| C++ / Eigen | EKF prediction, measurement updates, and covariance algebra |
+| Python / OpenCV / PyTorch | Detection, sign geometry, and ROS perception integration |
+| NumPy / pandas / Matplotlib / rosbag | Sensor residuals, timestamp alignment, metrics, and plots |
 
-**Existing workspace:**
-```bash
-cd ~/catkin_ws/src
-git clone https://github.com/mitsosasim/Simulator.git
-```
+## Explore the implementation
 
-**Or new workspace:**
-```bash
-mkdir -p ~/sim_ws/src
-cd ~/sim_ws/src
-git clone https://github.com/mitsosasim/Simulator.git
-```
+- [Sign pose estimation](src/example/src/sign_detector_node.py): the path from image detections to vehicle-frame observations.
+- [Vision-aided EKF](src/example/src/ekf_fusion_node.cpp): motion prediction, landmark matching, and fused ROS outputs.
+- [Wheel encoder plugin](src/plugins_pkgs/wheel_encoder_plugin/src/wheel_encoder_plugin.cpp): Ackermann odometry integration.
+- [Characterization](src/example/src/characterize_sensors.py) and [evaluation](src/example/src/evaluation.py): the experimental workflow.
 
-### Install ROS Dependencies
+## Inspect the archived results
 
-Ensure all listed packages above are installed.
-
-### Install Python Dependencies
+From the repository root, this dependency-free command reads the saved experiment summary:
 
 ```bash
-pip3 install torch torchvision numpy opencv-python pandas matplotlib
+python3 - <<'PY'
+import csv
+from pathlib import Path
+path = Path('src/example/src/evaluation_plots/ekf_comparison_metrics.csv')
+for row in csv.DictReader(path.open()):
+    print(f"{row['method']}: position RMSE {float(row['pos_rmse']):.3f} m")
+PY
 ```
 
-### Build
+The archived values are **0.320 m** for the vision-aided EKF and **0.503 m** for the local comparison filter. The latter deliberately uses inflated noise settings and is not the upstream `robot_localization` package. These figures describe the saved experiment, not a controlled benchmark or a newly reproduced run. [Interpretation and limitations](docs/ARCHITECTURE.md#experimental-evidence).
 
-```bash
-cd ~/sim_ws
-catkin_make   # or: catkin build
-source setup.bash
-```
+For simulation, follow the [Ubuntu 20.04 / ROS Noetic setup guide](docs/SETUP.md). Trained weights and the original experiment rosbag are not included.
 
----
+## Demo
 
-## Running the Simulation
+[View the existing simulation recording](docs/media/simulation-signs.mp4).
 
-### Source Workspace
+<!-- DEMO_UPLOAD_SLOT: replace this paragraph with the video poster/link after uploading docs/media/demo.mp4. -->
+**Final thesis demo:** upload `demo.mp4` using the [reserved demo slot](docs/media/README.md#upload-the-final-demo). The final demo and original thesis materials are pending import.
+<!-- END_DEMO_UPLOAD_SLOT -->
 
-```bash
-source ~/sim_ws/devel/setup.bash
-```
-
-### Launch Gazebo
-
-```bash
-roslaunch sim_pkg map_with_all_objects.launch
-```
-
-This command launches:
-- YOLO sign detection node
-- Custom EKF node
-- robot_localization EKF node
-
-**To run nodes separately:**
-```bash
-rosrun example sign_detector_node.py _model:=/path/to/best.pt _yolo_repo:=/path/to/YOLOv5-traffic
-rosrun example ekf_fusion_node
-rosrun example robot_localization
-```
-
-### Run Control Node
-
-```bash
-rosrun example control.py
-```
-Drive the car via joystick/keyboard.
-
----
-
-## Sensor Characterization
-
-Estimate sensor noise covariances:
-
-```bash
-rosrun example characterize_sensors.py _model_name:=automobile
-```
-
-- Subscribes to `/ground_truth_path`, `/automobile/wheel_encoder/odometry`, `/automobile/IMU`.
-- Buffers ground-truth poses, interpolates to match odom/IMU timestamps, computes residuals (mean/std), and suggests optimal variances for `R_odom` and `R_imu`.
-
----
-
-## Offline Evaluation
-
-### Record rosbag
-
-```bash
-# Manual stop:
-rosbag record /ground_truth_path /ekf/path /robot_localization/path
-
-# Fixed duration (e.g., 60s):
-timeout 60s rosbag record /ground_truth_path /ekf/path /robot_localization/path
-
-# or:
-rosbag record --duration=60 /ground_truth_path /ekf/path /robot_localization/path
-```
-
-### Run Evaluation Script
-
-```bash
-rosrun example evaluation.py /path/to/yourbag.bag
-```
-
-- Extracts final poses from Path topics.
-- Builds DataFrames for ground truth, custom EKF, baseline EKF.
-- Aligns by nearest timestamp (tolerance ~0.05 s).
-- Computes position/yaw errors; metrics: RMSE, mean, max → `ekf_comparison_metrics.csv`.
-- Creates plots.
-
----
-
-## Launch Files & Node Responsibilities
-
-- **map_with_all_objects.launch**: Main launch file for simulation, perception, and localization.
-- **sign_detector_node.py**: YOLOv5-based sign detection and pose estimation.
-- **ekf_fusion_node**: Custom EKF fusing odometry, IMU, and sign landmarks.
-- **robot_localization**: Baseline EKF (odometry + IMU).
-- **control.py**: Manual or autonomous vehicle control.
-
----
-
-## Repository Structure (Excerpt)
-
-```
-Simulator/
-├── src/
-│   ├── example/
-│   │   ├── src/
-│   │   │   ├── sign_detector_node.py
-│   │   │   ├── ekf_fusion_node.cpp
-│   │   │   ├── robot_localization.cpp
-│   │   │   ├── control.py
-│   │   │   └── ...
-│   ├── sim_pkg/
-│   │   ├── launch/
-│   │   │   └── map_with_all_objects.launch
-│   │   └── ...
-│   ├── utils_ros/
-│   │   ├── rviz.rviz
-│   │   └── ...
-│   └── ...
-├── README.md
-└── ...
-```
-
----
-
-## Contributing
-
-Contributions, bug reports, and feature requests are welcome!  
-Please open an issue or submit a pull request.
-
----
-
-
-
-## Contact
-
-For questions or collaboration, contact:  
-**mitsosasim** (github.com/mitsosasim)
-
----
+[Original BFMC license](LICENSE) · [Attribution and repository organization](docs/ARCHITECTURE.md#provenance-and-organization) · [Validation record](docs/VALIDATION.md)
