@@ -2,65 +2,68 @@
 
 A bachelor's thesis project that estimates an Ackermann vehicle's position by combining traffic sign observations, wheel odometry, and inertial measurements in a ROS/Gazebo simulation.
 
-**Dimitrios Asimakopoulos · Computer Science BSc thesis · CVRL, FORTH · Supervisor: Prof. Trahanias**
+**Dimitrios Asimakopoulos · University of Crete, Computer Science · June 2025**<br>
+**CVRL, FORTH · Supervisor: Prof. Panos Trahanias**
 
-<table>
-  <tr>
-    <td width="50%"><a href="docs/images/simulation-camera.png"><img src="docs/images/simulation-camera.png" alt="Recorded Gazebo camera view of the road and traffic signs" width="100%"></a></td>
-    <td width="50%"><a href="src/example/src/evaluation_plots/trajectories.png"><img src="src/example/src/evaluation_plots/trajectories.png" alt="Archived plot of ground truth, vision-aided EKF, and local comparison trajectories" width="100%"></a></td>
-  </tr>
-  <tr>
-    <td><sub>Simulation camera frame from the repository's recording.</sub></td>
-    <td><sub>Archived trajectory comparison. See the experimental qualifications below.</sub></td>
-  </tr>
-</table>
+[![Thesis demonstration with the Gazebo track, a detected crosswalk sign, EKF logs, and the RViz map](docs/images/thesis-workspace.jpg)](docs/thesis/presentation.pdf#page=20)
 
-**C++ · Python · ROS Noetic · Gazebo 11 · Eigen · OpenCV · YOLOv5/PyTorch**
+*Gazebo, sign pose estimation, and RViz during the thesis demonstration. Original presentation, slide 20.*
 
-[Thesis & presentation](docs/thesis/README.md) · [Setup](docs/SETUP.md) · [Architecture & results](docs/ARCHITECTURE.md) · [Demo](docs/media/README.md)
+**C++ · Python · ROS Noetic · Gazebo 11 · Eigen · OpenCV · YOLOv5-Nano/PyTorch**
+
+[Read the thesis](docs/thesis/report.pdf) · [View the presentation](docs/thesis/presentation.pdf) · [Setup](docs/SETUP.md) · [Architecture & results](docs/ARCHITECTURE.md) · [Demo](docs/media/README.md)
 
 ## From competition platform to thesis
 
-This work grew from FORTH's **Braking Bad** team and the **Bosch Future Mobility Challenge (BFMC)**, where the team reached the semifinals. The thesis focuses on perception and localization within that setting. This fork retains the competition simulator and its history while making the thesis contribution the entry point.
+This work grew from FORTH's **Braking Bad** team and the **Bosch Future Mobility Challenge (BFMC)**, where the team reached the semifinals. The thesis, *Pose Estimation via Visual Inertial Wheel Odometry in Autonomous Vehicles*, investigates how known traffic signs can correct the drift that accumulates when a vehicle relies on wheels and an inertial measurement unit (IMU).
 
-As the simulated car moves, camera images become labeled sign positions. A custom extended Kalman filter (EKF) combines these landmark observations with encoder velocity and IMU yaw to estimate the vehicle's pose. Recorded trajectories support comparison against simulator ground truth.
+The project packages perception, sensor plugins, and fusion as ROS components. Camera detections become sign positions in the vehicle frame. A custom extended Kalman filter (EKF), called **BB EKF** in the thesis, combines these observations with encoder velocity and IMU yaw. Recorded trajectories expose the effect of landmark corrections and support offline analysis.
 
 ## My contribution
 
-- Implemented traffic sign pose estimation using YOLOv5 detections, color and shape filtering, Perspective-n-Point geometry, and a pinhole fallback.
-- Integrated camera calibration, coordinate transformations, and temporal filtering to publish sign observations in the vehicle frame.
+- Prepared an annotated eight-class traffic-sign dataset and integrated YOLOv5-Nano with contour-based Perspective-n-Point geometry and a pinhole fallback.
+- Connected camera calibration, coordinate transformations, and temporal filtering to publish sign observations in the vehicle frame.
 - Developed a five-state C++ EKF with class-constrained landmark association and Mahalanobis gating for vision updates.
 - Implemented Ackermann wheel odometry as a Gazebo plugin using wheel rotation and steering geometry.
-- Built sensor characterization and offline trajectory evaluation tools, connecting covariance choices to measured residuals and localization error.
+- Built sensor characterization and trajectory evaluation tools, connecting covariance choices to residual statistics and localization error.
 
-The inherited track, vehicle models, and competition utilities remain credited to their original authors. Vendored YOLOv5 retains its own license and notices. The team result above provides context for the work, rather than a claim that this thesis stack was the competition vehicle's deployed system.
+The fork retains the inherited BFMC simulator, its history, and original attribution. Braking Bad's semifinal placement is a team achievement. The thesis evaluates this localization stack in simulation, with physical vehicle deployment identified as future work.
 
 ## System at a glance
 
 ![Data flow from Gazebo sensors through sign pose estimation and the EKF to trajectory evaluation](docs/images/architecture.svg)
 
-[Open the full diagram](docs/images/architecture.svg) · [Editable diagram source](docs/images/architecture.dot)
+[Open the full diagram](docs/images/architecture.svg) · [Editable source](docs/images/architecture.dot)
 
-The filter estimates `[x, y, yaw, speed, yaw rate]` against a **known landmark map**. Ground truth supplies a one-time initial pose and the evaluation reference. This is localization in simulation, with no map-building claim.
+The filter estimates `[x, y, yaw, speed, yaw rate]` against a **known landmark map**. Ground truth supplies a one-time initial pose and the evaluation reference. Sign updates add positional anchors between motion measurements. The implementation focuses on known-map localization.
 
 | Technology | Role |
 |---|---|
 | ROS Noetic / Catkin | Nodes, messages, transforms, and C++ builds |
 | Gazebo 11 / SDF | Vehicle dynamics, track, camera, and sensor plugins |
 | C++ / Eigen | EKF prediction, measurement updates, and covariance algebra |
-| Python / OpenCV / PyTorch | Detection, sign geometry, and ROS perception integration |
+| Python / OpenCV / PyTorch | YOLOv5-Nano integration, sign geometry, and ROS perception |
+| LabelImg | Manual traffic-sign bounding-box annotations |
 | NumPy / pandas / Matplotlib / rosbag | Sensor residuals, timestamp alignment, metrics, and plots |
+
+## Evidence from the thesis
+
+[![Thesis figure showing ground truth, BB EKF, and local encoder/IMU trajectories along curves and a roundabout](docs/images/thesis-trajectories.png)](docs/thesis/report.pdf#page=55)
+
+*Original thesis, Figure 15. Trajectories are shown relative to their starting positions.*
+
+Chapter 9 reports position RMSE of **0.4658 m** for BB EKF versus **0.5505 m** for its encoder/IMU comparison, with slightly higher yaw RMSE (**0.6129 rad** versus **0.6016 rad**). The repository CSV below records a separate experiment. The checked-out comparison filter uses deliberately inflated noise settings. Read the [experiment and tuning context](docs/ARCHITECTURE.md#experimental-evidence) when interpreting either result set.
 
 ## Explore the implementation
 
-- [Sign pose estimation](src/example/src/sign_detector_node.py): the path from image detections to vehicle-frame observations.
+- [Sign pose estimation](src/example/src/sign_detector_node.py): image detections, geometric pose estimation, and vehicle-frame observations.
 - [Vision-aided EKF](src/example/src/ekf_fusion_node.cpp): motion prediction, landmark matching, and fused ROS outputs.
 - [Wheel encoder plugin](src/plugins_pkgs/wheel_encoder_plugin/src/wheel_encoder_plugin.cpp): Ackermann odometry integration.
 - [Characterization](src/example/src/characterize_sensors.py) and [evaluation](src/example/src/evaluation.py): the experimental workflow.
 
-## Inspect the archived results
+## Inspect the archived CSV
 
-From the repository root, this dependency-free command reads the saved experiment summary:
+From the repository root, this dependency-free command reads the saved summary:
 
 ```bash
 python3 - <<'PY'
@@ -72,16 +75,14 @@ for row in csv.DictReader(path.open()):
 PY
 ```
 
-The archived values are **0.320 m** for the vision-aided EKF and **0.503 m** for the local comparison filter. The latter deliberately uses inflated noise settings and is not the upstream `robot_localization` package. These figures describe the saved experiment, not a controlled benchmark or a newly reproduced run. [Interpretation and limitations](docs/ARCHITECTURE.md#experimental-evidence).
+It prints **0.320 m** and **0.503 m** for the archived CSV run. For simulation, follow the [setup guide](docs/SETUP.md). Trained weights and the original experiment rosbags are not included.
 
-For simulation, follow the [Ubuntu 20.04 / ROS Noetic setup guide](docs/SETUP.md). Trained weights and the original experiment rosbag are not included.
+## Demo and original materials
 
-## Demo
-
-[View the existing simulation recording](docs/media/simulation-signs.mp4).
+[Thesis PDF, presentation, and original slide archive](docs/thesis/README.md) · [Existing simulation recording](docs/media/simulation-signs.mp4)
 
 <!-- DEMO_UPLOAD_SLOT: replace this paragraph with the video poster/link after uploading docs/media/demo.mp4. -->
-**Final thesis demo:** upload `demo.mp4` using the [reserved demo slot](docs/media/README.md#upload-the-final-demo). The final demo and original thesis materials are pending import.
+**Final thesis demo:** upload `demo.mp4` using the [reserved demo slot](docs/media/README.md#upload-the-final-demo).
 <!-- END_DEMO_UPLOAD_SLOT -->
 
-[Original BFMC license](LICENSE) · [Attribution and repository organization](docs/ARCHITECTURE.md#provenance-and-organization) · [Validation record](docs/VALIDATION.md)
+[Original BFMC license](LICENSE) · [Attribution and organization](docs/ARCHITECTURE.md#provenance-and-organization) · [Validation record](docs/VALIDATION.md)
