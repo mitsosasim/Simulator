@@ -1,27 +1,42 @@
 # Documentation validation
 
-Validated on 18 October 2026 for the thesis portfolio branch. Application source, runtime launch files, dependency manifests, and experiments were left unchanged.
+Updated on 18 October 2026 for the thesis portfolio branch. Application source, runtime launch files, dependency manifests, and experiments remain unchanged.
+
+## Supplied academic documents
 
 | Check | Outcome |
 |---|---|
-| Source and Git history review | README contribution claims trace to the detector, EKF, wheel plugin, characterization, and evaluation code |
-| Archived results | README example executed and printed position RMSE values of 0.320 m and 0.503 m from the existing CSV |
-| Shell examples | All authored Bash blocks in the README, setup guide, and architecture notes passed `bash -n` |
-| Software-only setup | Exact documented Docker command completed Catkin builds of `utils_ros` and `traffic_light_pkg`, then imported generated `IMU` and `SignLabelArray` messages |
-| Relative links and images | Authored Markdown navigation, local files, section anchors, and image paths checked |
-| README layout | Chromium inspected at 1280 px and 390 px widths, with all three images loaded and no page-level horizontal overflow |
-| Architecture | Graphviz SVG regenerated from its editable DOT source and visually inspected against the active processing path |
-| Asset organization | Moved MP4, TF graph, and TF PDF verified byte-identical to their original Git versions |
-| Repository diff | Whitespace checked and changes reviewed for unintended source edits |
+| Thesis import | The supplied 67-page PDF is stored unchanged as `docs/thesis/report.pdf`, with byte equality verified against the upload |
+| Slide archive import | The supplied ZIP contains exactly 25 numbered 1920 × 1080 JPEG slides, preserved unchanged as `presentation-slides.zip` |
+| Presentation assembly | The PDF contains 25 pages in numerical order, each covering a 16:9 page with its original JPEG embedded without recompression |
+| Presentation integrity | Every PDF image was extracted and compared byte-for-byte against its corresponding ZIP entry |
+| Reproducibility | The assembly script was run from a separate directory with a fresh copy of the source archive, then its PDF compared with the committed build |
+| Visual inspection | All 67 report pages and all 25 presentation pages were rendered and inspected, with selected figures viewed at full resolution |
+| Report preservation | Original wording, figures, formatting, and existing editorial issues are retained. The report was not recompiled or rewritten |
+| Sources | The supplied ZIP contains slide images, with no editable LaTeX or PowerPoint sources. No Overleaf build is claimed |
 
-The browser check uses a local Markdown rendering with GitHub-like styling, rather than claiming to reproduce GitHub's live renderer exactly. Dense figures can be opened at full size.
+## Portfolio presentation
 
-## Outstanding material and runtime checks
+| Check | Outcome |
+|---|---|
+| Academic facts | Title, author, university, supervisor, date, and acknowledgments checked against the report |
+| Results | Chapter 9 metrics are documented separately from the existing CSV. The positional improvement and slightly worse yaw RMSE in the thesis run are both described |
+| Implementation context | Current C++ comparison filter, class labels, idealized IMU, fixed landmark map, and available dataset checked against source |
+| README visual sources | The workspace screenshot matches slide 20 exactly. Report figures match their original PDF image objects |
+| Links and images | Authored Markdown navigation, local files, section anchors, PDF page references, and image paths checked |
+| README layout | Local Chromium rendering inspected at 1280 px and 390 px widths, with images loaded and no page-level horizontal overflow |
+| Repository diff | Whitespace and scope checked, with no application source changes |
 
-The combined uploaded archive exceeded the file tool's 32 MiB transfer limit. The original thesis PDF, presentation, LaTeX sources, and additional figures could not be imported, read, compiled, or inspected. No substitute report, placeholder PDF, or fabricated Overleaf package was created. Import and validation of those original materials require accessible smaller attachments.
+The browser check uses local Markdown with GitHub-like styling. It does not claim to reproduce GitHub's live renderer exactly. Full-resolution image and PDF links are available for detailed inspection.
 
-The final `demo.mp4` is intentionally left for the author to upload. [Instructions and the reserved location](media/README.md#upload-the-final-demo) are included.
+## Previously verified development path
 
-Full simulator, perception, and historical rosbag evaluation were not rerun. The current cloud setup lacks the full ROS/Gazebo dependencies because access to the ROS snapshot package server is denied by network policy. Trained weights and the original experiment rosbag are absent. The setup guide identifies these boundaries and the readiness checks still required.
+The existing README example executed and read position RMSE values of 0.320 m and 0.503 m from the tracked CSV. Authored Bash examples passed syntax checks. During the preceding portfolio update, the exact documented Docker command completed Catkin builds of `utils_ros` and `traffic_light_pkg`, then imported the generated `IMU` and `SignLabelArray` messages. Those application checks were not repeated for this document-only update.
 
-The old TF PDF was preserved without modification. It is a historical transform snapshot, not the requested thesis report.
+The moved simulation recording and historical TF graph/PDF were previously verified byte-identical to their root-level originals.
+
+## Remaining limits
+
+The final `demo.mp4` is intentionally left for the author to upload. [Instructions and the reserved location](media/README.md#upload-the-final-demo) remain available.
+
+Full simulator, perception, and historical rosbag evaluation were not rerun. The current cloud setup lacks the full ROS/Gazebo dependencies following the package-server network restriction described in the [setup guide](SETUP.md). Trained weights, original experiment rosbags, and run manifests are absent. The documents describe historical experiments without claiming fresh runtime validation or physical vehicle deployment.

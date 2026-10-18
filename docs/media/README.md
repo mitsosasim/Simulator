@@ -8,17 +8,19 @@
 
 This is the repository's existing `sim_signs.mp4`, moved here without changing its bytes. It contains a 640 × 480 simulation camera recording lasting approximately 4 minutes 51 seconds. It is not labeled as the final presentation demo.
 
-The README's [camera image](../images/simulation-camera.png) is a frame extracted at 80 seconds from that recording. It depicts the simulated track and signs, with no added detection overlays.
+The retained [camera-only image](../images/simulation-camera.png) is a frame extracted at 80 seconds from that recording. It depicts the simulated track and signs, with no added detection overlays.
+
+The [final presentation PDF](../thesis/presentation.pdf#page=20) includes a separate screenshot of the complete simulation workspace.
 
 ## Upload the final demo
 
 **Reserved upload location: `docs/media/demo.mp4`.** No empty video file or broken player is included.
 
 1. Upload your final `demo.mp4` at that path, keeping the existing simulation recording as a separate artifact.
-2. Replace the README's `DEMO_UPLOAD_SLOT` block with the snippet below. The image acts as a clickable poster linked to the real video. Replace the poster with a frame from the final demo if it shows a different scene.
+2. Replace the README's `DEMO_UPLOAD_SLOT` block with the snippet below. The presentation screenshot acts as a clickable poster linked to the real video. Replace the poster with a frame from the final demo if it shows a different scene.
 
    ```markdown
-   [![Watch the final thesis demo](docs/images/simulation-camera.png)](docs/media/demo.mp4)
+   [![Watch the final thesis demo](docs/images/thesis-workspace.jpg)](docs/media/demo.mp4)
 
    [Watch or download the final demo](docs/media/demo.mp4).
    ```
