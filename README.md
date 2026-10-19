@@ -5,9 +5,14 @@ Estimate an autonomous vehicle's position by combining traffic-sign observations
 **Dimitrios Asimakopoulos · Bachelor's thesis · University of Crete · June 2025**<br>
 Computer Vision and Robotics Laboratory (CVRL), FORTH · Supervisor: Prof. Panos Trahanias
 
-[![Watch the thesis demo: simulated driving, traffic-sign detection, and estimated trajectories](docs/images/demo.jpg)](https://github.com/mitsosasim/Simulator/raw/refs/heads/main/docs/media/demo.mp4)
+<p>
+  <img src="docs/images/uoc.png" height="48" alt="University of Crete"> &nbsp;
+  <img src="docs/images/forth.jpg" height="72" alt="FORTH Computer Vision and Robotics Laboratory">
+</p>
 
-**[Watch the demo · 21 seconds](https://github.com/mitsosasim/Simulator/raw/refs/heads/main/docs/media/demo.mp4)** · [Thesis](docs/thesis/report.pdf) · [Presentation](docs/thesis/presentation.pdf) · [Setup](docs/SETUP.md) · [Architecture & results](docs/ARCHITECTURE.md)
+![Thesis demo: simulated driving, traffic-sign detection, and estimated trajectories](docs/media/thesis.gif)
+
+[Report](docs/thesis/report.pdf) · [Presentation](docs/thesis/presentation.pdf) · [Setup](docs/SETUP.md) · [Architecture & results](docs/ARCHITECTURE.md) · [Download full video](https://github.com/mitsosasim/Simulator/raw/refs/heads/main/docs/media/demo.mp4)
 
 **C++ · Python · ROS Noetic · Gazebo 11 · Eigen · OpenCV · YOLOv5-Nano/PyTorch**
 
@@ -23,19 +28,40 @@ The work grew from FORTH's **Braking Bad** team and the **Bosch Future Mobility 
 - Implemented Ackermann wheel odometry as a Gazebo plugin using wheel rotation and steering geometry.
 - Built sensor characterization and trajectory evaluation tools to study noise, drift, and localization error.
 
+<table>
+  <tr>
+    <td width="50%" align="center"><a href="docs/images/bfmc-vehicle.png"><img src="docs/images/bfmc-vehicle.png" height="180" alt="BFMC vehicle platform with onboard electronics"></a><br><sub>BFMC vehicle platform</sub></td>
+    <td width="50%" align="center"><a href="docs/images/sign-pose.png"><img src="docs/images/sign-pose.png" height="180" alt="Simulated one-way sign with its detected class and estimated position"></a><br><sub>Sign pose estimation in simulation</sub></td>
+  </tr>
+</table>
+
 ## How it works
 
 ![Camera detections and wheel/IMU measurements feed the localization filter, with Gazebo ground truth used for initialization and evaluation](docs/images/architecture.svg)
 
 The filter estimates position, heading, speed, and yaw rate against a known landmark map. Ground truth supplies the initial pose and the evaluation reference.
 
+<details>
+<summary>ROS communication: topics and services</summary>
+
+<img src="docs/images/ros.gif" width="480" alt="ROS nodes exchange messages through topics and requests through services">
+
+</details>
+
 ## Results
 
 In the thesis's representative simulation run, sign-aided localization reduced position RMSE (root mean square error) by about **15%**, from **0.5505 m to 0.4658 m**. Yaw RMSE was slightly higher: **0.6129 rad versus 0.6016 rad**. The comparison uses a local encoder/IMU filter with different noise settings, so it does not isolate the effect of vision. See [experiment details](docs/ARCHITECTURE.md#results).
 
-![Ground-truth and estimated trajectories from the thesis](docs/images/thesis-trajectories.png)
-
-*Thesis Figure 15: trajectories aligned to their starting positions.*
+<table>
+  <tr>
+    <td width="50%" align="center"><a href="docs/images/x-vs-time.png"><img src="docs/images/x-vs-time.png" width="100%" alt="X position over time: ground truth, BB EKF, and encoder/IMU comparison"></a><br><sub>X position</sub></td>
+    <td width="50%" align="center"><a href="docs/images/y-vs-time.png"><img src="docs/images/y-vs-time.png" width="100%" alt="Y position over time: ground truth, BB EKF, and encoder/IMU comparison"></a><br><sub>Y position</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><a href="docs/images/yaw-vs-time.png"><img src="docs/images/yaw-vs-time.png" width="100%" alt="Heading over time: ground truth, BB EKF, and encoder/IMU comparison"></a><br><sub>Heading</sub></td>
+    <td width="50%" align="center"><a href="docs/images/thesis-trajectories.png"><img src="docs/images/thesis-trajectories.png" width="100%" alt="Ground-truth and estimated trajectories from the thesis"></a><br><sub>Trajectories aligned to their starting positions</sub></td>
+  </tr>
+</table>
 
 ## Explore the code
 
