@@ -1,4 +1,4 @@
-# Vision-Aided Vehicle Localization
+# Traffic Sign–Aided Vehicle Localization
 
 Estimate an autonomous vehicle's position by combining traffic-sign observations, wheel odometry, and inertial measurements in a ROS/Gazebo simulation.
 
@@ -15,7 +15,8 @@ The work grew from FORTH's **Braking Bad** team and the **Bosch Future Mobility 
 
 ## My contribution
 
-- Prepared an eight-class traffic-sign dataset and integrated YOLOv5-Nano with geometric sign pose estimation.
+- Manually annotated approximately 3,000 traffic-sign images and trained YOLOv5-Nano to detect eight sign classes.
+- Integrated the trained detector with geometric sign pose estimation.
 - Combined camera calibration, coordinate transforms, and temporal filtering to produce landmark observations in the vehicle frame.
 - Developed a five-state C++ EKF with class-based landmark association and Mahalanobis gating to reject unlikely matches.
 - Implemented Ackermann wheel odometry as a Gazebo plugin using wheel rotation and steering geometry.
@@ -45,16 +46,9 @@ The filter estimates position, heading, speed, and yaw rate against a known land
 
 In the thesis's representative simulation run, sign-aided localization reduced position RMSE (root mean square error) by about **15%**, from **0.5505 m to 0.4658 m**. Yaw RMSE was slightly higher: **0.6129 rad versus 0.6016 rad**. The comparison uses a local encoder/IMU filter with different noise settings, so it does not isolate the effect of vision. See [experiment details](docs/ARCHITECTURE.md#results).
 
-<table>
-  <tr>
-    <td width="50%" align="center"><a href="docs/images/x-vs-time.png"><img src="docs/images/x-vs-time.png" width="100%" alt="X position over time: ground truth, BB EKF, and encoder/IMU comparison"></a><br><sub>X position</sub></td>
-    <td width="50%" align="center"><a href="docs/images/y-vs-time.png"><img src="docs/images/y-vs-time.png" width="100%" alt="Y position over time: ground truth, BB EKF, and encoder/IMU comparison"></a><br><sub>Y position</sub></td>
-  </tr>
-  <tr>
-    <td width="50%" align="center"><a href="docs/images/yaw-vs-time.png"><img src="docs/images/yaw-vs-time.png" width="100%" alt="Heading over time: ground truth, BB EKF, and encoder/IMU comparison"></a><br><sub>Heading</sub></td>
-    <td width="50%" align="center"><a href="docs/images/thesis-trajectories.png"><img src="docs/images/thesis-trajectories.png" width="100%" alt="Ground-truth and estimated trajectories from the thesis"></a><br><sub>Trajectories aligned to their starting positions</sub></td>
-  </tr>
-</table>
+[![Ground-truth and estimated trajectories from the thesis](docs/images/thesis-trajectories.png)](docs/ARCHITECTURE.md#results)
+
+*Both filters follow the route; separation from ground truth shows position drift. [State and error plots](docs/ARCHITECTURE.md#state-tracking) show how it changes over time.*
 
 ## Explore the code
 

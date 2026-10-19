@@ -18,7 +18,7 @@ The node converts positions to meters and transforms them into the vehicle frame
 | `/sign_detector/sign_labels` | Traffic-sign classes |
 | `/automobile/image_annotated` | Detection overlay |
 
-The thesis describes approximately 3,000 collected images, manual LabelImg annotations, an 80/20 training–validation split, and 640 × 640 model inputs. The repository includes a subset of 573 training and 144 validation images. The classes cover crosswalk, one-way, roundabout, no-entry, highway entry, parking, priority, and highway exit.
+Dimitrios Asimakopoulos manually annotated approximately 3,000 traffic-sign images using LabelImg and trained YOLOv5-Nano for eight classes, using an 80/20 training–validation split and 640 × 640 model inputs. The repository includes a subset of 573 training and 144 validation images. The classes cover crosswalk, one-way, roundabout, no-entry, highway entry, parking, priority, and highway exit.
 
 ## Motion and sensor fusion
 
@@ -44,16 +44,40 @@ The comparison executable, [`robot_localization.cpp`](../src/example/src/robot_l
 
 The representative simulation run in [Chapter 9 of the thesis](thesis/report.pdf#page=54) reports:
 
-| Method | Position RMSE (m) | Position mean (m) | Yaw RMSE (rad) |
-|---|---:|---:|---:|
-| BB EKF with sign updates | 0.4658 | 0.4456 | 0.6129 |
-| Local encoder/IMU comparison | 0.5505 | 0.5181 | 0.6016 |
+| Method | Position RMSE (m) | Yaw RMSE (rad) |
+|---|---:|---:|
+| BB EKF with sign updates | 0.4658 | 0.6129 |
+| Local encoder/IMU comparison | 0.5505 | 0.6016 |
 
 Position RMSE improved by approximately 15%, with slightly higher yaw error. Different covariance settings limit attribution of the improvement to visual updates alone.
 
 ![Thesis trajectory comparison](images/thesis-trajectories.png)
 
-*Thesis Figure 15: ground truth, BB EKF, and encoder/IMU trajectories aligned to their starting positions.*
+*Trajectories aligned to their starting positions. Both estimates follow the route; their separation from ground truth shows position drift.*
+
+### State tracking
+
+<table>
+  <tr>
+    <td width="33%" align="center"><a href="images/x-vs-time.png"><img src="images/x-vs-time.png" width="100%" alt="X position over time for ground truth and both filters"></a><br><sub>X position</sub></td>
+    <td width="33%" align="center"><a href="images/y-vs-time.png"><img src="images/y-vs-time.png" width="100%" alt="Y position over time for ground truth and both filters"></a><br><sub>Y position</sub></td>
+    <td width="33%" align="center"><a href="images/yaw-vs-time.png"><img src="images/yaw-vs-time.png" width="100%" alt="Heading over time for ground truth and both filters"></a><br><sub>Heading</sub></td>
+  </tr>
+</table>
+
+Green is ground truth, blue is BB EKF, and red is the local encoder/IMU comparison. Both filters track the overall motion, with visible position offsets. Heading largely overlaps; jumps near ±π are angle wrapping.
+
+### Error over time
+
+<table>
+  <tr>
+    <td width="33%" align="center"><a href="images/x-error-vs-time.png"><img src="images/x-error-vs-time.png" width="100%" alt="Signed X position error over time for both filters"></a><br><sub>X error</sub></td>
+    <td width="33%" align="center"><a href="images/y-error-vs-time.png"><img src="images/y-error-vs-time.png" width="100%" alt="Signed Y position error over time for both filters"></a><br><sub>Y error</sub></td>
+    <td width="33%" align="center"><a href="images/yaw-error-vs-time.png"><img src="images/yaw-error-vs-time.png" width="100%" alt="Absolute wrapped heading error over time for both filters"></a><br><sub>Heading error</sub></td>
+  </tr>
+</table>
+
+Closer to zero means a better estimate. BB EKF has smaller Y error for much of the run, but a larger final deviation. X error is mixed, and the heading errors nearly overlap: the improvement is mainly positional, rather than a consistent gain in every component.
 
 The [repository CSV](../src/example/src/evaluation_plots/ekf_comparison_metrics.csv) contains a separate run, with position RMSE of 0.320 m for the vision-aided filter and 0.503 m for the comparison. Original rosbags and complete run configurations are not included.
 
