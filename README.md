@@ -2,13 +2,6 @@
 
 Estimate an autonomous vehicle's position by combining traffic-sign observations, wheel odometry, and inertial measurements in a ROS/Gazebo simulation.
 
-**Dimitrios Asimakopoulos · Bachelor's thesis · University of Crete · June 2025**<br>
-Computer Vision and Robotics Laboratory (CVRL), FORTH · Supervisor: Prof. Panos Trahanias
-
-<p>
-  <img src="docs/images/forth.jpg" height="72" alt="FORTH Computer Vision and Robotics Laboratory">
-  <img src="docs/images/uoc.png" height="48" alt="University of Crete"> &nbsp;
-</p>
 
 ![Thesis demo: simulated driving, traffic-sign detection, and estimated trajectories](docs/media/thesis.gif)
 
@@ -71,6 +64,9 @@ In the thesis's representative simulation run, sign-aided localization reduced p
 | Vision-aided sensor fusion | [C++ EKF with Eigen](src/example/src/ekf_fusion_node.cpp) |
 | Ackermann odometry | [Gazebo wheel encoder plugin](src/plugins_pkgs/wheel_encoder_plugin/src/wheel_encoder_plugin.cpp) |
 | Experimental analysis | [Sensor characterization](src/example/src/characterize_sensors.py) and [trajectory evaluation](src/example/src/evaluation.py) |
+
+**Dimitrios Asimakopoulos · Bachelor's thesis · University of Crete · June 2025**<br>
+Computer Vision and Robotics Laboratory (CVRL), FORTH · Supervisor: Prof. Panos Trahanias
 
 Follow the [setup guide](docs/SETUP.md) to build and run the simulator. It targets Ubuntu 20.04, ROS Noetic, and Gazebo 11. Trained weights and original experiment rosbags are not included. The thesis evaluates simulation; physical vehicle deployment is future work.
 
