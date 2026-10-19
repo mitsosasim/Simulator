@@ -1,4 +1,4 @@
-# Traffic Sign–Aided Vehicle Localization
+# Vision–Aided Autonomous Vehicle Localization
 
 Estimate an autonomous vehicle's position by combining traffic-sign observations, wheel odometry, and inertial measurements in a ROS/Gazebo simulation.
 
