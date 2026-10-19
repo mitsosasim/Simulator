@@ -6,8 +6,8 @@ Estimate an autonomous vehicle's position by combining traffic-sign observations
 Computer Vision and Robotics Laboratory (CVRL), FORTH · Supervisor: Prof. Panos Trahanias
 
 <p>
-  <img src="docs/images/uoc.png" height="48" alt="University of Crete"> &nbsp;
   <img src="docs/images/forth.jpg" height="72" alt="FORTH Computer Vision and Robotics Laboratory">
+  <img src="docs/images/uoc.png" height="48" alt="University of Crete"> &nbsp;
 </p>
 
 ![Thesis demo: simulated driving, traffic-sign detection, and estimated trajectories](docs/media/thesis.gif)
