@@ -48,7 +48,7 @@ In the thesis's representative simulation run, sign-aided localization reduced p
 
 [![Ground-truth and estimated trajectories from the thesis](docs/images/thesis-trajectories.png)](docs/ARCHITECTURE.md#results)
 
-*Both filters follow the route; separation from ground truth shows position drift. [State and error plots](docs/ARCHITECTURE.md#state-tracking) show how it changes over time.*
+[State and error plots](docs/ARCHITECTURE.md#state-tracking) show how it changes over time.*
 
 ## Explore the code
 
